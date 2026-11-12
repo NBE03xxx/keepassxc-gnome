@@ -1,0 +1,76 @@
+#pragma once
+
+#include "ReadLimits.h"
+
+#include <memory>
+#include <string>
+#include <vector>
+
+class Database;
+class Entry;
+
+enum class FixtureFormat { Kdbx3, Kdbx4, Kdbx41 };
+
+struct EntrySummary
+{
+    std::string id;
+    std::string title;
+    std::string username;
+    std::string group;
+};
+
+struct GroupSummary
+{
+    std::string id;
+    std::string name;
+    unsigned depth = 0;
+};
+
+struct EntryDetails
+{
+    std::string id;
+    std::string group;
+    std::string title;
+    std::string username;
+    std::string password;
+    std::string url;
+    std::string notes;
+};
+
+class CoreSession
+{
+public:
+    static constexpr auto FixturePassword = "phase2-demo";
+
+    CoreSession();
+    ~CoreSession();
+
+    static bool initialize();
+    static bool createFixture(const std::string& path, FixtureFormat format);
+
+    bool unlock(const std::string& path, const std::string& password, const ReadLimits& limits = {});
+    ReadFailure lastReadFailure() const { return readFailure; }
+    ReadStats lastReadStats() const { return readStats; }
+    bool create(const std::string& name, const std::string& password);
+    void lock();
+    std::vector<EntrySummary> entries() const;
+    std::vector<EntrySummary> search(const std::string& query, const std::string& group = {}) const;
+    std::vector<GroupSummary> groups() const;
+    std::string addGroup(const std::string& parent, const std::string& name);
+    bool renameGroup(const std::string& id, const std::string& name);
+    bool removeGroup(const std::string& id);
+    std::string addEntry(const std::string& group, const EntryDetails& details);
+    bool entry(const std::string& id, EntryDetails& details) const;
+    bool updateEntry(const EntryDetails& details);
+    bool removeEntry(const std::string& id);
+    static std::string generatePassword(unsigned length = 24);
+    bool rename(const std::string& id, const std::string& title);
+    bool saveCopy(const std::string& path);
+    std::string copyPassword(const std::string& id) const;
+
+private:
+    Entry* findEntry(const std::string& id) const;
+    std::unique_ptr<Database> database;
+    ReadFailure readFailure = ReadFailure::None;
+    ReadStats readStats;
+};

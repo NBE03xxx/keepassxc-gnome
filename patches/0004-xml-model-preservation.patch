@@ -1,0 +1,440 @@
+--- a/src/format/Kdbx3Reader.cpp
++++ b/src/format/Kdbx3Reader.cpp
+@@ -188,8 +188,17 @@
+     }
+ 
+     bool headerEnd = false;
++    if (!GnomeRead::uniqueHeader(static_cast<quint8>(fieldID))) {
++        raiseError(tr("Duplicate database header field"));
++        return false;
++    }
+     switch (static_cast<KeePass2::HeaderFieldID>(fieldID)) {
+     case KeePass2::HeaderFieldID::EndOfHeader:
++        if (GnomeRead::current && fieldData != QByteArrayLiteral("\r\n\r\n")) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Header delimiter data cannot be preserved"));
++            return false;
++        }
+         headerEnd = true;
+         break;
+ 
+@@ -230,6 +239,11 @@
+         break;
+ 
+     default:
++        if (GnomeRead::current) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Unknown header data cannot be preserved"));
++            return false;
++        }
+         qWarning("Unknown header field read: id=%d", fieldID);
+         break;
+     }
+--- a/src/format/Kdbx4Reader.cpp
++++ b/src/format/Kdbx4Reader.cpp
+@@ -205,8 +205,17 @@
+         }
+     }
+ 
++    if (!GnomeRead::uniqueHeader(static_cast<quint8>(fieldID))) {
++        raiseError(tr("Duplicate database header field"));
++        return false;
++    }
+     switch (static_cast<KeePass2::HeaderFieldID>(fieldID)) {
+     case KeePass2::HeaderFieldID::EndOfHeader:
++        if (GnomeRead::current && fieldData != QByteArrayLiteral("\r\n\r\n")) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Header delimiter data cannot be preserved"));
++            return false;
++        }
+         return false;
+ 
+     case KeePass2::HeaderFieldID::CipherID:
+@@ -263,6 +272,11 @@
+         return false;
+ 
+     default:
++        if (GnomeRead::current) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Unknown header data cannot be preserved"));
++            return false;
++        }
+         qWarning("Unknown header field read: id=%d", fieldID);
+         break;
+     }
+@@ -309,8 +323,17 @@
+         }
+     }
+ 
++    if (!GnomeRead::uniqueHeader(static_cast<quint8>(fieldID), true)) {
++        raiseError(tr("Duplicate inner header field"));
++        return false;
++    }
+     switch (fieldID) {
+     case KeePass2::InnerHeaderFieldID::End:
++        if (GnomeRead::current && !fieldData.isEmpty()) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Inner delimiter data cannot be preserved"));
++            return false;
++        }
+         return false;
+ 
+     case KeePass2::InnerHeaderFieldID::InnerRandomStreamID:
+@@ -326,10 +349,26 @@
+             raiseError(tr("Invalid inner header binary size"));
+             return false;
+         }
++        if (GnomeRead::current && static_cast<unsigned char>(fieldData.at(0)) != 0x01) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Binary protection flags cannot be preserved"));
++            return false;
++        }
++        if (!GnomeRead::modelItem(GnomeRead::Item::Binary)) {
++            raiseError(tr("Too many binary items"));
++            return false;
++        }
+         auto data = fieldData.mid(1);
+         m_binaryPool.insert(QString::number(m_binaryPool.size()), data);
+         break;
+     }
++    default:
++        if (GnomeRead::current) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Unknown inner header data cannot be preserved"));
++            return false;
++        }
++        break;
+     }
+ 
+     return true;
+@@ -344,8 +383,13 @@
+ QVariantMap Kdbx4Reader::readVariantMap(QIODevice* device)
+ {
+     bool ok;
+-    quint16 version =
+-        Endian::readSizedInt<quint16>(device, KeePass2::BYTEORDER, &ok) & KeePass2::VARIANTMAP_CRITICAL_MASK;
++    const auto rawVersion = Endian::readSizedInt<quint16>(device, KeePass2::BYTEORDER, &ok);
++    if (GnomeRead::current && ok && rawVersion != KeePass2::VARIANTMAP_VERSION) {
++        GnomeRead::reject(ReadFailure::UnsupportedData);
++        raiseError(tr("Variant map version cannot be preserved"));
++        return {};
++    }
++    quint16 version = rawVersion & KeePass2::VARIANTMAP_CRITICAL_MASK;
+     quint16 maxVersion = KeePass2::VARIANTMAP_VERSION & KeePass2::VARIANTMAP_CRITICAL_MASK;
+     if (!ok || (version > maxVersion)) {
+         //: Translation: variant map = data structure for storing meta data
+@@ -385,6 +429,11 @@
+             }
+         }
+         QString name = QString::fromUtf8(nameBytes);
++        if (GnomeRead::current && name.toUtf8() != nameBytes) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            raiseError(tr("Dictionary key encoding cannot be preserved"));
++            return {};
++        }
+         if (GnomeRead::current && vm.contains(name)) {
+             GnomeRead::reject(ReadFailure::InvalidInput);
+             raiseError(tr("Duplicate dictionary key"));
+@@ -414,6 +463,11 @@
+         switch (fieldType) {
+         case KeePass2::VariantMapFieldType::Bool:
+             if (valueLen == 1) {
++                if (GnomeRead::current && valueBytes.at(0) != 0 && valueBytes.at(0) != 1) {
++                    GnomeRead::reject(ReadFailure::UnsupportedData);
++                    raiseError(tr("Dictionary boolean cannot be preserved"));
++                    return {};
++                }
+                 vm.insert(name, QVariant(valueBytes.at(0) != 0));
+             } else {
+                 //: Translation: variant map = data structure for storing meta data
+@@ -463,6 +517,11 @@
+             break;
+ 
+         case KeePass2::VariantMapFieldType::String:
++            if (GnomeRead::current && QString::fromUtf8(valueBytes).toUtf8() != valueBytes) {
++                GnomeRead::reject(ReadFailure::UnsupportedData);
++                raiseError(tr("Dictionary string encoding cannot be preserved"));
++                return {};
++            }
+             vm.insert(name, QVariant(QString::fromUtf8(valueBytes)));
+             break;
+ 
+--- a/src/format/KdbxXmlReader.cpp
++++ b/src/format/KdbxXmlReader.cpp
+@@ -99,6 +99,10 @@
+     m_randomStream = randomStream;
+     m_headerHash.clear();
+ 
++    if (!GnomeRead::modelItem(GnomeRead::Item::Group)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
+     m_tmpParent.reset(new Group());
+ 
+     bool rootGroupParsed = false;
+@@ -129,6 +133,12 @@
+         return;
+     }
+ 
++    if (GnomeRead::current && (!m_tmpParent->children().isEmpty() || !m_tmpParent->entries().isEmpty())) {
++        GnomeRead::reject(ReadFailure::UnsupportedData);
++        m_xml.raiseError(QStringLiteral("Unresolved model references cannot be preserved."));
++        return;
++    }
++
+     if (!m_tmpParent->children().isEmpty()) {
+         qWarning("KdbxXmlReader::readDatabase: found %" PRIdQSIZETYPE " invalid group reference(s)",
+                  m_tmpParent->children().size());
+@@ -143,6 +153,12 @@
+     const QSet<QString> entryKeys = Tools::asSet(m_binaryMap.keys());
+     const QSet<QString> unmappedKeys = entryKeys - poolKeys;
+     const QSet<QString> unusedKeys = poolKeys - entryKeys;
++
++    if (GnomeRead::current && (!unmappedKeys.isEmpty() || !unusedKeys.isEmpty())) {
++        GnomeRead::reject(ReadFailure::UnsupportedData);
++        m_xml.raiseError(QStringLiteral("Unresolved or unused binary data cannot be preserved."));
++        return;
++    }
+ 
+     if (!unmappedKeys.isEmpty()) {
+         qWarning("Unmapped keys left.");
+@@ -364,6 +380,11 @@
+ 
+ void KdbxXmlReader::parseIcon()
+ {
++    if (!GnomeRead::modelItem(GnomeRead::Item::Icon)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
++
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"Icon"));
+ 
+     QUuid uuid;
+@@ -392,6 +413,11 @@
+     if (uuidSet && iconSet) {
+         // Check for duplicate UUID (corruption)
+         if (m_meta->hasCustomIcon(uuid)) {
++            if (GnomeRead::current) {
++                GnomeRead::reject(ReadFailure::UnsupportedData);
++                m_xml.raiseError(QStringLiteral("Duplicate custom icon identifier."));
++                return;
++            }
+             uuid = QUuid::createUuid();
+         }
+         m_meta->addCustomIcon(uuid, iconData, name, lastModified);
+@@ -411,8 +437,17 @@
+             continue;
+         }
+ 
++    if (!GnomeRead::modelItem(GnomeRead::Item::Binary)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
+         QXmlStreamAttributes attr = m_xml.attributes();
+         QString id = attr.value("ID").toString();
++        if (GnomeRead::current && m_binaryPool.contains(id)) {
++            GnomeRead::reject(ReadFailure::UnsupportedData);
++            m_xml.raiseError(QStringLiteral("Duplicate binary identifier."));
++            return;
++        }
+         QByteArray data = isTrueValue(attr.value("Compressed")) ? readCompressedBinary() : readBinary();
+ 
+         if (m_binaryPool.contains(id)) {
+@@ -438,6 +473,11 @@
+ 
+ void KdbxXmlReader::parseCustomDataItem(CustomData* customData)
+ {
++    if (!GnomeRead::modelItem(GnomeRead::Item::CustomData)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
++
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"Item"));
+ 
+     QString key;
+@@ -504,6 +544,10 @@
+ {
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"Group"));
+ 
++    if (!GnomeRead::modelItem(GnomeRead::Item::Group)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return nullptr;
++    }
+     auto group = new Group();
+     group->setUpdateTimeinfo(false);
+     QList<Group*> children;
+@@ -630,7 +674,16 @@
+ 
+     if (!group->uuid().isNull()) {
+         Group* tmpGroup = group;
++        if (!GnomeRead::definition(tmpGroup->uuid(), true)) {
++            m_xml.raiseError(QStringLiteral("Duplicate group definition."));
++            delete tmpGroup;
++            return nullptr;
++        }
+         group = getGroup(tmpGroup->uuid());
++        if (!group) {
++            delete tmpGroup;
++            return nullptr;
++        }
+         group->copyDataFrom(tmpGroup);
+         group->setUpdateTimeinfo(false);
+         delete tmpGroup;
+@@ -664,6 +717,11 @@
+ 
+ void KdbxXmlReader::parseDeletedObject()
+ {
++    if (!GnomeRead::modelItem(GnomeRead::Item::Deleted)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
++
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"DeletedObject"));
+ 
+     DeletedObject delObj{{}, {}};
+@@ -701,7 +759,15 @@
+ Entry* KdbxXmlReader::parseEntry(bool history)
+ {
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"Entry"));
+-
++    if (history && !GnomeRead::historyItem()) {
++        m_xml.raiseError(QStringLiteral("History item limit exceeded."));
++        return nullptr;
++    }
++
++    if (!GnomeRead::modelItem(GnomeRead::Item::Entry)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return nullptr;
++    }
+     auto entry = new Entry();
+     entry->setUpdateTimeinfo(false);
+     QList<Entry*> historyItems;
+@@ -815,7 +881,18 @@
+         } else {
+             Entry* tmpEntry = entry;
+ 
++            if (!GnomeRead::definition(tmpEntry->uuid(), false)) {
++                m_xml.raiseError(QStringLiteral("Duplicate entry definition."));
++                qDeleteAll(historyItems);
++                delete tmpEntry;
++                return nullptr;
++            }
+             entry = getEntry(tmpEntry->uuid());
++            if (!entry) {
++                qDeleteAll(historyItems);
++                delete tmpEntry;
++                return nullptr;
++            }
+             entry->copyDataFrom(tmpEntry);
+             entry->setUpdateTimeinfo(false);
+ 
+@@ -827,6 +904,10 @@
+ 
+     for (Entry* historyItem : asConst(historyItems)) {
+         if (historyItem->uuid() != entry->uuid()) {
++            if (GnomeRead::current) {
++                GnomeRead::reject(ReadFailure::UnsupportedData);
++                m_xml.raiseError(QStringLiteral("History identity cannot be preserved."));
++            }
+             if (m_strictMode) {
+                 raiseError(tr("History element with different uuid"));
+             } else {
+@@ -845,6 +926,11 @@
+ 
+ void KdbxXmlReader::parseEntryString(Entry* entry)
+ {
++    if (!GnomeRead::modelItem(GnomeRead::Item::String)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
++
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"String"));
+ 
+     QString key;
+@@ -888,6 +974,11 @@
+ 
+ QPair<QString, QString> KdbxXmlReader::parseEntryBinary(Entry* entry)
+ {
++    if (!GnomeRead::modelItem(GnomeRead::Item::Attachment)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return {};
++    }
++
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"Binary"));
+ 
+     QPair<QString, QString> poolRef;
+@@ -957,6 +1048,11 @@
+ 
+ void KdbxXmlReader::parseAutoTypeAssoc(Entry* entry)
+ {
++    if (!GnomeRead::modelItem(GnomeRead::Item::Association)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return;
++    }
++
+     Q_ASSERT(m_xml.isStartElement() && m_xml.name() == qsv(u"Association"));
+ 
+     AutoTypeAssociations::Association assoc;
+@@ -990,7 +1086,8 @@
+ 
+     while (!m_xml.hasError() && m_xml.readNextStartElement()) {
+         if (m_xml.name() == qsv(u"Entry")) {
+-            historyItems.append(parseEntry(true));
++            auto* item = parseEntry(true);
++            if (item) historyItems.append(item);
+         } else {
+             skipCurrentElement();
+         }
+@@ -1203,6 +1300,10 @@
+         return m_groups.value(uuid);
+     }
+ 
++    if (!GnomeRead::modelItem(GnomeRead::Item::Group)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return nullptr;
++    }
+     auto group = new Group();
+     group->setUpdateTimeinfo(false);
+     group->setUuid(uuid);
+@@ -1221,6 +1322,10 @@
+         return m_entries.value(uuid);
+     }
+ 
++    if (!GnomeRead::modelItem(GnomeRead::Item::Entry)) {
++        m_xml.raiseError(QStringLiteral("Model item limit exceeded."));
++        return nullptr;
++    }
+     auto entry = new Entry();
+     entry->setUpdateTimeinfo(false);
+     entry->setUuid(uuid);
+@@ -1231,6 +1336,11 @@
+ 
+ void KdbxXmlReader::skipCurrentElement()
+ {
++    if (GnomeRead::current) {
++        GnomeRead::reject(ReadFailure::UnsupportedData);
++        m_xml.raiseError(QStringLiteral("Unknown XML element cannot be preserved."));
++        return;
++    }
+     qWarning("KdbxXmlReader::skipCurrentElement: skip element \"%s\"", qPrintable(m_xml.name().toString()));
+     m_xml.skipCurrentElement();
+ }
+--- a/src/format/KdbxXmlReader.h
++++ b/src/format/KdbxXmlReader.h
+@@ -25,6 +25,7 @@
+ #include <QMultiHash>
+ #include <QStringView>
+ #include <QXmlStreamReader>
++#include "gnome/XmlPolicy.h"
+ 
+ class QIODevice;
+ class Group;
+@@ -104,7 +105,7 @@
+     QPointer<Database> m_db;
+     QPointer<Metadata> m_meta;
+     KeePass2RandomStream* m_randomStream = nullptr;
+-    QXmlStreamReader m_xml;
++    GnomeRead::XmlReader m_xml;
+ 
+     QScopedPointer<Group> m_tmpParent;
+     QHash<QUuid, Group*> m_groups;

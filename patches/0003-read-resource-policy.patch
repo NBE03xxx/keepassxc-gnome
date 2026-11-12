@@ -1,0 +1,318 @@
+--- a/src/format/Kdbx3Reader.cpp
++++ b/src/format/Kdbx3Reader.cpp
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include "Kdbx3Reader.h"
++#include "gnome/ReadBudget.h"
+ 
+ #include "core/AsyncTask.h"
+ #include "core/Endian.h"
+@@ -47,6 +48,7 @@
+         return false;
+     }
+ 
++    if (GnomeRead::current) ++GnomeRead::current->stats.kdfStarts;
+     bool ok = AsyncTask::runAndWaitForFuture([&] { return db->setKey(key, false); });
+     if (!ok) {
+         raiseError(tr("Unable to calculate database key"));
+@@ -65,6 +67,9 @@
+     QByteArray finalKey = hash.result();
+ 
+     auto mode = SymmetricCipher::cipherUuidToMode(db->cipher());
++    if (GnomeRead::current) {
++        GnomeRead::current->countCipherOutput = db->compressionAlgorithm() == Database::CompressionNone;
++    }
+     SymmetricCipherStream cipherStream(device);
+     if (!cipherStream.init(mode, SymmetricCipher::Decrypt, finalKey, m_encryptionIV)) {
+         raiseError(cipherStream.errorString());
+@@ -165,6 +170,11 @@
+         return false;
+     }
+ 
++    if (!GnomeRead::outerField(fieldLen, 3)) {
++        raiseError(tr("Database header exceeds the read policy or input size"));
++        return false;
++    }
++
+     QByteArray fieldData;
+     if (fieldLen != 0) {
+         fieldData = headerStream.read(fieldLen);
+--- a/src/format/Kdbx4Reader.cpp
++++ b/src/format/Kdbx4Reader.cpp
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "Kdbx4Reader.h"
++#include "gnome/ReadBudget.h"
+ 
+ #include <QBuffer>
+ #include <QJsonObject>
+@@ -50,6 +51,7 @@
+         return false;
+     }
+ 
++    if (GnomeRead::current) ++GnomeRead::current->stats.kdfStarts;
+     bool ok = AsyncTask::runAndWaitForFuture([&] { return db->setKey(key, false, false); });
+     if (!ok) {
+         raiseError(tr("Unable to calculate database key: %1").arg(db->keyError()));
+@@ -89,6 +91,9 @@
+     if (mode == SymmetricCipher::InvalidMode) {
+         raiseError(tr("Unknown cipher"));
+         return false;
++    }
++    if (GnomeRead::current) {
++        GnomeRead::current->countCipherOutput = db->compressionAlgorithm() == Database::CompressionNone;
+     }
+     SymmetricCipherStream cipherStream(&hmacStream);
+     if (!cipherStream.init(mode, SymmetricCipher::Decrypt, finalKey, m_encryptionIV)) {
+@@ -180,6 +185,11 @@
+     auto fieldLen = Endian::readSizedInt<quint32>(&device, KeePass2::BYTEORDER, &ok);
+     if (!ok) {
+         raiseError(tr("Invalid header field length: field %1").arg(fieldID));
++        return false;
++    }
++
++    if (!GnomeRead::outerField(fieldLen, 5)) {
++        raiseError(tr("Database header exceeds the read policy or input size"));
+         return false;
+     }
+ 
+@@ -222,6 +232,10 @@
+             return false;
+         }
+         QVariantMap kdfParams = readVariantMap(&bufIoDevice);
++        if (hasError() || !GnomeRead::kdf(kdfParams)) {
++            raiseError(tr("Unsupported, invalid or excessive KDF parameters"));
++            return false;
++        }
+         QSharedPointer<Kdf> kdf = KeePass2::kdfFromParameters(kdfParams);
+         if (!kdf) {
+             raiseError(tr("Unsupported key derivation function (KDF) or invalid parameters"));
+@@ -275,6 +289,11 @@
+     auto fieldLen = Endian::readSizedInt<quint32>(device, KeePass2::BYTEORDER, &ok);
+     if (!ok) {
+         raiseError(tr("Invalid inner header field length: field %1").arg(static_cast<int>(fieldID)));
++        return false;
++    }
++
++    if (!GnomeRead::innerField(fieldLen)) {
++        raiseError(tr("Inner header exceeds the read policy"));
+         return false;
+     }
+ 
+@@ -335,15 +354,25 @@
+     }
+ 
+     QVariantMap vm;
++    quint64 dictionaryEntries = 0;
+     QByteArray fieldTypeArray;
+     KeePass2::VariantMapFieldType fieldType = KeePass2::VariantMapFieldType::End;
+     while (((fieldTypeArray = device->read(1)).size() == 1)
+            && ((fieldType = static_cast<KeePass2::VariantMapFieldType>(fieldTypeArray.at(0)))
+                != KeePass2::VariantMapFieldType::End)) {
++        if (GnomeRead::current && ++dictionaryEntries > GnomeRead::current->limits.dictionaryEntries) {
++            GnomeRead::reject(ReadFailure::ResourceLimit);
++            raiseError(tr("Too many dictionary entries"));
++            return {};
++        }
+         auto nameLen = Endian::readSizedInt<quint32>(device, KeePass2::BYTEORDER, &ok);
+         if (!ok) {
+             //: Translation: variant map = data structure for storing meta data
+             raiseError(tr("Invalid variant map entry name length"));
++            return {};
++        }
++        if (!GnomeRead::dictionaryLength(nameLen, device->bytesAvailable(), true)) {
++            raiseError(tr("Invalid or excessive dictionary name length"));
+             return {};
+         }
+         QByteArray nameBytes;
+@@ -356,11 +385,20 @@
+             }
+         }
+         QString name = QString::fromUtf8(nameBytes);
++        if (GnomeRead::current && vm.contains(name)) {
++            GnomeRead::reject(ReadFailure::InvalidInput);
++            raiseError(tr("Duplicate dictionary key"));
++            return {};
++        }
+ 
+         auto valueLen = Endian::readSizedInt<quint32>(device, KeePass2::BYTEORDER, &ok);
+         if (!ok) {
+             //: Translation: variant map = data structure for storing meta data
+             raiseError(tr("Invalid variant map entry value length"));
++            return {};
++        }
++        if (!GnomeRead::dictionaryLength(valueLen, device->bytesAvailable(), false)) {
++            raiseError(tr("Invalid or excessive dictionary value length"));
+             return {};
+         }
+         QByteArray valueBytes;
+@@ -445,6 +483,12 @@
+         return {};
+     }
+ 
++    if (GnomeRead::current && (fieldTypeArray.size() != 1 || fieldType != KeePass2::VariantMapFieldType::End
++                              || !device->atEnd())) {
++        GnomeRead::reject(ReadFailure::InvalidInput);
++        raiseError(tr("Incomplete dictionary or trailing dictionary data"));
++        return {};
++    }
+     return vm;
+ }
+ 
+--- a/src/format/KdbxReader.cpp
++++ b/src/format/KdbxReader.cpp
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include "KdbxReader.h"
++#include "gnome/ReadBudget.h"
+ #include "core/Database.h"
+ #include "core/Endian.h"
+ #include "crypto/SymmetricCipher.h"
+@@ -67,6 +68,7 @@
+ bool KdbxReader::readDatabase(QIODevice* device, QSharedPointer<const CompositeKey> key, Database* db)
+ {
+     device->seek(0);
++    GnomeRead::beginHeader();
+ 
+     m_db = db;
+     m_masterSeed.clear();
+@@ -199,6 +201,10 @@
+     }
+ 
+     auto rounds = Endian::bytesToSizedInt<quint64>(data, KeePass2::BYTEORDER);
++    if (!GnomeRead::aesRounds(rounds)) {
++        raiseError(tr("AES KDF rounds are invalid or exceed the read policy"));
++        return;
++    }
+     auto kdf = m_db->kdf();
+     if (!kdf.isNull()) {
+         kdf->setRounds(static_cast<int>(rounds));
+--- a/src/streams/HashedBlockStream.cpp
++++ b/src/streams/HashedBlockStream.cpp
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "HashedBlockStream.h"
++#include "gnome/ReadBudget.h"
+ 
+ #include "core/Endian.h"
+ #include "crypto/CryptoHash.h"
+@@ -158,6 +159,12 @@
+         return false;
+     }
+ 
++    if (!GnomeRead::block(m_blockSize)) {
++        m_error = true;
++        setErrorString(QStringLiteral("Block exceeds the read policy."));
++        return false;
++    }
++
+     m_buffer = m_baseDevice->read(m_blockSize);
+     if (m_buffer.size() != m_blockSize) {
+         m_error = true;
+--- a/src/streams/HmacBlockStream.cpp
++++ b/src/streams/HmacBlockStream.cpp
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "HmacBlockStream.h"
++#include "gnome/ReadBudget.h"
+ 
+ #include "core/Endian.h"
+ #include "crypto/CryptoHash.h"
+@@ -146,6 +147,12 @@
+         return false;
+     }
+ 
++    if (!GnomeRead::block(blockSize)) {
++        m_error = true;
++        setErrorString(QStringLiteral("Block exceeds the read policy."));
++        return false;
++    }
++
+     m_buffer = m_baseDevice->read(blockSize);
+     if (m_buffer.size() != blockSize) {
+         m_error = true;
+--- a/src/streams/SymmetricCipherStream.cpp
++++ b/src/streams/SymmetricCipherStream.cpp
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "SymmetricCipherStream.h"
++#include "gnome/ReadBudget.h"
+ 
+ SymmetricCipherStream::SymmetricCipherStream(QIODevice* baseDevice)
+     : LayeredStream(baseDevice)
+@@ -97,6 +98,17 @@
+         return -1;
+     }
+ 
++    if (GnomeRead::current && GnomeRead::current->countCipherOutput) {
++        maxSize = GnomeRead::outputAllowance(maxSize);
++    }
++    auto completedRead = [this](qint64 count) -> qint64 {
++        if (GnomeRead::current && GnomeRead::current->countCipherOutput && !GnomeRead::consumeOutput(count)) {
++            m_error = true;
++            setErrorString(QStringLiteral("Decoded data exceeds the read policy."));
++            return -1;
++        }
++        return count;
++    };
+     qint64 bytesRemaining = maxSize;
+     qint64 offset = 0;
+ 
+@@ -106,7 +118,7 @@
+                 if (m_error) {
+                     return -1;
+                 } else {
+-                    return maxSize - bytesRemaining;
++                    return completedRead(maxSize - bytesRemaining);
+                 }
+             }
+         }
+@@ -120,7 +132,7 @@
+         bytesRemaining -= bytesToCopy;
+     }
+ 
+-    return maxSize;
++    return completedRead(maxSize);
+ }
+ 
+ bool SymmetricCipherStream::finishReading()
+--- a/src/streams/qtiocompressor.cpp
++++ b/src/streams/qtiocompressor.cpp
+@@ -45,6 +45,7 @@
+ ****************************************************************************/
+ 
+ #include "qtiocompressor.h"
++#include "gnome/ReadBudget.h"
+ #include <limits>
+ #include <new>
+ #include <zlib.h>
+@@ -530,7 +531,8 @@
+ 
+     // We are going to try to fill the data buffer
+     d->zlibStream.next_out = reinterpret_cast<ZlibByte *>(data);
+-    d->zlibStream.avail_out = maxSize;
++    const auto outputCapacity = GnomeRead::outputAllowance(maxSize);
++    d->zlibStream.avail_out = outputCapacity;
+ 
+     int status;
+     do {
+@@ -588,7 +590,12 @@
+             d->device->ungetChar(*reinterpret_cast<char *>(d->zlibStream.next_in + i - 1));
+     }
+ 
+-    const ZlibSize outputSize = maxSize - d->zlibStream.avail_out;
++    const ZlibSize outputSize = outputCapacity - d->zlibStream.avail_out;
++    if (!GnomeRead::consumeOutput(outputSize)) {
++        d->state = QtIOCompressorPrivate::Error;
++        setErrorString(QStringLiteral("Expanded data exceeds the read policy."));
++        return -1;
++    }
+     return outputSize;
+ }
+ 

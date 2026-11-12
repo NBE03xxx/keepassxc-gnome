@@ -1,0 +1,227 @@
+--- a/src/format/Kdbx3Reader.cpp
++++ b/src/format/Kdbx3Reader.cpp
+@@ -120,6 +120,20 @@
+         return false;
+     }
+ 
++    if (ioCompressor && !ioCompressor->isReadComplete()) {
++        raiseError(tr("Incomplete compressed stream"));
++        return false;
++    }
++    char extra;
++    if (hashedStream.read(&extra, 1) != 0 || !hashedStream.atEnd()) {
++        raiseError(tr("Incomplete hashed stream or trailing payload data"));
++        return false;
++    }
++    if (!cipherStream.finishReading()) {
++        raiseError(cipherStream.errorString());
++        return false;
++    }
++
+     Q_ASSERT(!xmlReader.headerHash().isEmpty() || db->formatVersion() < KeePass2::FILE_VERSION_3_1);
+ 
+     if (!xmlReader.headerHash().isEmpty()) {
+--- a/src/format/Kdbx4Reader.cpp
++++ b/src/format/Kdbx4Reader.cpp
+@@ -151,6 +151,19 @@
+         return false;
+     }
+ 
++    if (ioCompressor && !ioCompressor->isReadComplete()) {
++        raiseError(tr("Incomplete compressed stream"));
++        return false;
++    }
++    if (!cipherStream.finishReading()) {
++        raiseError(cipherStream.errorString());
++        return false;
++    }
++    if (!hmacStream.atEnd() || !device->atEnd()) {
++        raiseError(tr("Incomplete authenticated stream or trailing file data"));
++        return false;
++    }
++
+     return true;
+ }
+ 
+--- a/src/format/KdbxXmlReader.cpp
++++ b/src/format/KdbxXmlReader.cpp
+@@ -114,6 +114,18 @@
+ 
+     if (!rootGroupParsed) {
+         raiseError(tr("No root group"));
++        return;
++    }
++
++    // The root closing tag is not the end of the XML document. Consume
++    // trailing whitespace/comments and reject a second root or incomplete tail.
++    while (!m_xml.atEnd()) {
++        if (m_xml.readNext() == QXmlStreamReader::NoToken) {
++            raiseError(tr("Incomplete XML document"));
++            return;
++        }
++    }
++    if (m_xml.hasError()) {
+         return;
+     }
+ 
+--- a/src/streams/HashedBlockStream.cpp
++++ b/src/streams/HashedBlockStream.cpp
+@@ -253,5 +253,8 @@
+ 
+ bool HashedBlockStream::atEnd() const
+ {
+-    return m_eof;
+-}
++    // No future input can repair a failed synchronous block read. Reporting
++    // potential input here makes an XML parser keep retrying after an error.
++    // readData() still returns -1, so completion checks can reject the error.
++    return m_eof || m_error;
++}
+--- a/src/streams/SymmetricCipherStream.cpp
++++ b/src/streams/SymmetricCipherStream.cpp
+@@ -26,6 +26,7 @@
+     , m_isInitialized(false)
+     , m_dataWritten(false)
+     , m_streamCipher(false)
++    , m_readFinished(false)
+ {
+ }
+ 
+@@ -55,6 +56,7 @@
+     m_bufferFilling = false;
+     m_error = false;
+     m_dataWritten = false;
++    m_readFinished = false;
+     m_cipher->reset();
+ }
+ 
+@@ -121,8 +123,22 @@
+     return maxSize;
+ }
+ 
++bool SymmetricCipherStream::finishReading()
++{
++    char extra;
++    const auto count = read(&extra, 1);
++    if (count > 0) {
++        setErrorString(QStringLiteral("Unexpected data after the payload."));
++        return false;
++    }
++    return count == 0 && !m_error && m_readFinished;
++}
++
+ bool SymmetricCipherStream::readBlock()
+ {
++    if (m_readFinished) {
++        return false;
++    }
+     QByteArray newData;
+ 
+     if (m_bufferFilling) {
+@@ -143,18 +159,33 @@
+     }
+ 
+     if (!m_streamCipher && m_buffer.size() != blockSize()) {
++        if (readResult == 0) {
++            m_error = true;
++            setErrorString(QStringLiteral("Incomplete cipher block."));
++        }
+         m_bufferFilling = true;
+         return false;
+     } else {
+         m_bufferPos = 0;
+         m_bufferFilling = false;
+ 
+-        if (!m_streamCipher && m_baseDevice->atEnd()) {
++        // An authenticated stream discovers its terminator on the next read.
++        // Look ahead before processing the final CBC block so Botan can verify
++        // and remove its padding. A failed look-ahead must not become EOF.
++        const bool lastBlock = m_streamCipher ? m_buffer.isEmpty() : m_baseDevice->peek(1).isEmpty();
++        if (lastBlock) {
++            char extra;
++            if (m_baseDevice->read(&extra, 1) != 0 || !m_baseDevice->atEnd()) {
++                m_error = true;
++                setErrorString(m_baseDevice->errorString());
++                return false;
++            }
+             if (!m_cipher->finish(m_buffer)) {
+                 m_error = true;
+                 setErrorString(m_cipher->errorString());
+                 return false;
+             }
++            m_readFinished = true;
+         } else if (m_buffer.size() > 0) {
+             if (!m_cipher->process(m_buffer)) {
+                 m_error = true;
+--- a/src/streams/SymmetricCipherStream.h
++++ b/src/streams/SymmetricCipherStream.h
+@@ -36,6 +36,9 @@
+     bool open(QIODevice::OpenMode mode) override;
+     bool reset() override;
+     void close() override;
++    // Call after the payload reader has consumed its complete document.
++    // Reject unread plaintext, incomplete cipher input and invalid padding.
++    bool finishReading();
+ 
+ protected:
+     qint64 readData(char* data, qint64 maxSize) override;
+@@ -55,6 +58,7 @@
+     bool m_isInitialized;
+     bool m_dataWritten;
+     bool m_streamCipher;
++    bool m_readFinished;
+ };
+ 
+ #endif // KEEPASSX_SYMMETRICCIPHERSTREAM_H
+--- a/src/streams/qtiocompressor.cpp
++++ b/src/streams/qtiocompressor.cpp
+@@ -512,6 +512,12 @@
+     \internal
+     Reads and decompresses data from the underlying device.
+ */
++bool QtIOCompressor::isReadComplete() const
++{
++    Q_D(const QtIOCompressor);
++    return d->state == QtIOCompressorPrivate::EndOfStream;
++}
++
+ qint64 QtIOCompressor::readData(char *data, qint64 maxSize)
+ {
+     Q_D(QtIOCompressor);
+@@ -538,6 +544,15 @@
+             if (bytesAvailable == -1) {
+                 d->state = QtIOCompressorPrivate::Error;
+                 setErrorString(QT_TRANSLATE_NOOP("QtIOCompressor", "Error reading data from underlying device: ") + d->device->errorString());
++                return -1;
++            }
++
++            // KDBX readers use complete local files/buffers, not an input
++            // stream waiting for future bytes. EOF before Z_STREAM_END is
++            // truncation, including a missing gzip trailer.
++            if (bytesAvailable == 0 && d->state == QtIOCompressorPrivate::InStream) {
++                d->state = QtIOCompressorPrivate::Error;
++                setErrorString(QStringLiteral("Compressed stream ended before its trailer."));
+                 return -1;
+             }
+ 
+@@ -569,8 +584,8 @@
+         d->state = QtIOCompressorPrivate::EndOfStream;
+ 
+         // Unget any data left in the read buffer.
+-        for (int i = d->zlibStream.avail_in;  i >= 0; --i)
+-            d->device->ungetChar(*reinterpret_cast<char *>(d->zlibStream.next_in + i));
++        for (int i = d->zlibStream.avail_in; i > 0; --i)
++            d->device->ungetChar(*reinterpret_cast<char *>(d->zlibStream.next_in + i - 1));
+     }
+ 
+     const ZlibSize outputSize = maxSize - d->zlibStream.avail_out;
+--- a/src/streams/qtiocompressor.h
++++ b/src/streams/qtiocompressor.h
+@@ -65,6 +65,7 @@
+     void close() override;
+     void flush();
+     qint64 bytesAvailable() const override;
++    bool isReadComplete() const;
+ 
+ protected:
+     qint64 readData(char* data, qint64 maxSize) override;

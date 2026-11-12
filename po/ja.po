@@ -1,0 +1,191 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: KeePassXC GNOME 0.1.0\n"
+"PO-Revision-Date: 2026-11-12 23:00+0900\n"
+"Last-Translator: KeePassXC GNOME developers\n"
+"Language-Team: Japanese\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgid "Choose a local file."
+msgstr "ローカルのファイルを選択してください。"
+
+msgid "Copied for 10 seconds."
+msgstr "コピーしました（10秒間）。"
+
+msgid "Copy password"
+msgstr "パスワードをコピー"
+
+msgid "Copy saved."
+msgstr "コピーを保存しました。"
+
+msgid "Copy username"
+msgstr "ユーザー名をコピー"
+
+msgid "Could not save. Choose a new filename in a writable folder."
+msgstr "保存できませんでした。書き込み可能なフォルダーで新しいファイル名を指定してください。"
+
+msgid "Could not unlock the database. Check the password and file."
+msgstr "ロックを解除できませんでした。パスワードとファイルを確認してください。"
+
+msgid "Could not update the entry."
+msgstr "エントリーを更新できませんでした。"
+
+msgid "Create"
+msgstr "作成"
+
+msgid "Create or open a test database to get started."
+msgstr "検証用データベースを作成するか、開いてください。"
+
+msgid "Credentials"
+msgstr "認証情報"
+
+msgid "Database name"
+msgstr "データベース名"
+
+msgid "Delete"
+msgstr "削除"
+
+msgid "Delete entry?"
+msgstr "エントリーを削除しますか？"
+
+msgid "Delete group?"
+msgstr "グループを削除しますか？"
+
+msgid "Development build. Use synthetic test databases only."
+msgstr "開発版です。合成した検証用データベースを使用してください。"
+
+msgid "Discard"
+msgstr "破棄"
+
+msgid "Discard unsaved changes?"
+msgstr "未保存の変更を破棄しますか？"
+
+msgid "Edit"
+msgstr "編集"
+
+msgid "Edit entry"
+msgstr "エントリーを編集"
+
+msgid "Enter a nonempty name."
+msgstr "名前を入力してください。"
+
+msgid "Enter matching, nonempty passwords."
+msgstr "空ではない同じパスワードを入力してください。"
+
+msgid "Generate"
+msgstr "生成"
+
+msgid "KeePassXC GNOME — Development"
+msgstr "KeePassXC GNOME — 開発版"
+
+msgid "Lock"
+msgstr "ロック"
+
+msgid "Locked"
+msgstr "ロックしました"
+
+msgid "Master password"
+msgstr "マスターパスワード"
+
+msgid "New database"
+msgstr "データベースを作成"
+
+msgid "New entry"
+msgstr "エントリーを作成"
+
+msgid "New group"
+msgstr "グループを作成"
+
+msgid "Notes"
+msgstr "メモ"
+
+msgid "Open database"
+msgstr "データベースを開く"
+
+msgid "Password"
+msgstr "パスワード"
+
+msgid "Passwords"
+msgstr "パスワード"
+
+msgid "Ready"
+msgstr "準備完了"
+
+msgid "Rename"
+msgstr "名前を変更"
+
+msgid "Rename group"
+msgstr "グループ名を変更"
+
+msgid "Repeat master password"
+msgstr "マスターパスワード（確認）"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Save a copy"
+msgstr "別名コピーを保存"
+
+msgid "Save a copy first if you want to keep your changes."
+msgstr "変更を残す場合は、先に別名コピーを保存してください。"
+
+msgid "Save a database copy"
+msgstr "データベースの別名コピーを保存"
+
+msgid "Save entry"
+msgstr "エントリーを保存"
+
+msgid "Search entries"
+msgstr "エントリーを検索"
+
+msgid "The entry will move to the recycle bin."
+msgstr "エントリーをごみ箱へ移動します。"
+
+msgid "The group and its entries will move to the recycle bin."
+msgstr "グループとそのエントリーをごみ箱へ移動します。"
+
+msgid "Title"
+msgstr "タイトル"
+
+msgid "Unlock"
+msgstr "ロック解除"
+
+msgid "Unlock database"
+msgstr "データベースのロック解除"
+
+msgid "Unsaved changes"
+msgstr "未保存の変更があります"
+
+msgid "Username"
+msgstr "ユーザー名"
+
+msgid "Website"
+msgstr "ウェブサイト"
+
+msgid "Working…"
+msgstr "処理中…"
+
+msgid "Your database is locked"
+msgstr "データベースはロックされています"
+
+msgid "Could not open the file chooser. Try again."
+msgstr "ファイル選択画面を開けませんでした。もう一度お試しください。"
+
+msgid "This database exceeds the development build's read limits. The file was not changed."
+msgstr "このデータベースは開発版の読み込み上限を超えています。ファイルは変更していません。"
+
+msgid "This database uses KDF settings this build cannot preserve or compute correctly. The file was not changed."
+msgstr "このデータベースは、この開発版で正しく計算または保持できないKDF設定を使用しています。ファイルは変更していません。"
+
+msgid "Could not read a local regular database file."
+msgstr "ローカルの通常ファイルとしてデータベースを読み込めませんでした。"
+
+msgid "This database contains data this build cannot safely preserve. The file was not changed."
+msgstr "このデータベースには、この開発版で安全に保持できないデータが含まれています。ファイルは変更していません。"

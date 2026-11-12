@@ -1,0 +1,13 @@
+--- a/tests/TestKeePass2Format.cpp
++++ b/tests/TestKeePass2Format.cpp
+@@ -599,7 +599,9 @@
+     // change key
+     db->setKey(key2);
+ 
+-    // write database
++    // Replace the buffer contents, just as saving to a truncated file does.
++    // Strict readers reject bytes left over from a previous, longer write.
++    buffer.buffer().clear();
+     buffer.seek(0);
+     writeKdbx(&buffer, db.data(), hasError, errorString);
+     if (hasError) {

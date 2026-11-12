@@ -1,0 +1,29 @@
+{
+  "commit": "1c2f23ef5914c0f442a00533def1689857afb5a7",
+  "files": {
+    "src/format/Kdbx3Reader.cpp": "db8ea6e347ccb963c50adb4d1d483a45a49eb9613c793e3206cc86729a0c6ea2",
+    "src/format/Kdbx4Reader.cpp": "faeed22b34309e31038ad9ce40e0bcc25a537b5de848d78a152fdcc5da945cda",
+    "src/format/KdbxXmlReader.cpp": "496c5f8978a7d4382c2570b32c882dcf706f3c35eb32e7c678bd3c1f138cbe8b",
+    "src/streams/SymmetricCipherStream.cpp": "b685ca7fd250084baf63c83093e27b89fc0341751a0e5ce5389110a0ba53276c",
+    "src/streams/SymmetricCipherStream.h": "9915bfca11c0ebc6b8cde366b23c40903162094d40a660b8e58a01cb332e25eb",
+    "src/streams/qtiocompressor.cpp": "415ac401dda4100dd7a5e9ba809c382314baf0d2ddd8ad21e6e41c77a481d71c",
+    "src/streams/qtiocompressor.h": "f06bea149ec0daa600f7e74c4be462b8bb12fecf15d391a2283213213a1cf546",
+    "src/format/Kdbx3Reader.h": "ed2cdac35b6b809c455dac588fe6638c0fbd07c92e529641c7846ecd288d5fc0",
+    "src/format/Kdbx4Reader.h": "2145b31c3e6797f6c2dd45b7190ebaf970965a9a822001b4134e21150b62caa8",
+    "src/format/KdbxXmlReader.h": "f974af57bc20dd9a64fae183c0ddb0c0dafa5a2de053ff2f3d280c19bc7db118",
+    "tests/TestKeePass2Format.cpp": "ae1ddeff66234432b53b70a0bde1813dad1ce6707750420541f7b8056ec8c50c",
+    "src/streams/HashedBlockStream.cpp": "e6fbe29ea9358a9441083279141ac3014fa41012db6599377837ed648d961624",
+    "src/streams/HashedBlockStream.h": "93c65e7345bbb71e2f70aef2ca4c2dc2a243da4d8ebf64563b3e5b8cefb07741",
+    "src/format/KdbxReader.cpp": "f431bb5f751daa9ded5506aa0864b1018f4d9413fa7b5e4afc09462f8566c2e0",
+    "src/streams/HmacBlockStream.cpp": "1e4b8a324f6f11ffcb323666cb69e15778eb2ea5ca13abb7f095ea574f0c74ae",
+    "src/streams/HmacBlockStream.h": "d61684780dc54b7c7a2976b0f15fff4f1993cb2520291bc613af90d02523121b",
+    "src/format/KdbxReader.h": "95f268978d105dd76796dad4ddabb9463187657c32eeb5898ae5ec67df8c314b",
+    "src/format/KeePass2.h": "ed96830f626bd798a78749a411af3ef104b923765ae37eaf11cf127054ec5f19"
+  },
+  "patches": [
+    "0001-reader-finalization.patch",
+    "0002-tests-truncate-reused-buffer.patch",
+    "0003-read-resource-policy.patch",
+    "0004-xml-model-preservation.patch"
+  ]
+}
