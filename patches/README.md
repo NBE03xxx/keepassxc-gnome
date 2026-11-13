@@ -8,6 +8,8 @@
 3. `0003-read-resource-policy.patch`：アプリの解除スコープで KDF の元の型・値、ヘッダー・辞書・ブロック・復号と展開の量を検査する。ポリシーと診断はプロジェクトの `src/gnome/ReadBudget.h` へ局所化する。詳細は [資源制限の記録](../docs/read-resource-policy.md) を参照。
 4. `0004-xml-model-preservation.patch`：XML の追跡とモデル生成・追加の予算、保持できない項目の拒否を接続する。未知データをモデルへ取り込んで書き戻す機能は未実装。対応範囲と試験は [XML・保持の記録](../docs/xml-model-preservation.md) を参照。
 
+5. `0005-stream-cipher-empty-final-block.patch`：ChaCha20 / Salsa20 の出力が1024バイト単位で終わるとき、既に処理済みの空の最終バッファを再処理せず終了する。AES の最終 padding は従来通り上流 API を使う。暗号方式・キー導出・KDBX は変更しない。上流の無変更 core で失敗を再現し、境界と前後の分割書込みを比較する。
+
 実測と制約は [終端検証の記録](../docs/reader-finalization.md) を参照。
 
 `tools/prepare-core-overrides.py` がコミットと対象ファイルの SHA-256 を `reader-finalization.json` と照合する。パッチは fuzz を禁止して適用する。ビルドには差分のあるソースと対応するヘッダーを使い、上流更新で接点が変われば構成時に停止する。新しい上流への追従時は、パッチの内容と回帰試験を見直した上でコミットとハッシュを更新する。

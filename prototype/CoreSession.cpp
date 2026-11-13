@@ -13,6 +13,10 @@
 #include "crypto/Crypto.h"
 #include "format/KeePass2.h"
 #include "format/KeePass2Reader.h"
+#include "format/KeePass2Writer.h"
+#include "crypto/Random.h"
+#include "gnome/SafeSave.h"
+#include <QCryptographicHash>
 #include "keys/CompositeKey.h"
 #include "keys/PasswordKey.h"
 #include "gnome/ReadBudget.h"
@@ -38,40 +42,39 @@ QSharedPointer<CompositeKey> keyFor(const std::string& password)
     return key;
 }
 
-bool writeNewCopy(Database& database, const QString& path)
+SaveResult writeDatabase(Database& database, const QString& path, const FileStamp* expected, bool archive = false, int* lease = nullptr)
 {
-    const QFileInfo destination(path);
-    if (destination.fileName().isEmpty() || destination.exists() || destination.isSymLink()) {
-        return false;
-    }
-
-    QTemporaryDir staging(destination.absoluteDir().filePath(QStringLiteral(".keepassxc-phase2.XXXXXX")));
-    if (!staging.isValid()) {
-        return false;
-    }
-
-    const auto candidate = staging.filePath(QStringLiteral("copy.kdbx"));
-    const bool modified = database.isModified();
-    const bool nonDataChanges = database.hasNonDataChanges();
-    const bool written = database.saveAs(candidate, Database::Atomic, {});
-
-    // Detach the editing snapshot from the temporary path before publishing it.
-    database.setFilePath({});
-    if (modified) {
-        database.markAsModified();
-    } else {
-        database.markAsClean();
-    }
-    if (nonDataChanges && !database.hasNonDataChanges()) {
-        database.markNonDataChange();
-    }
-    if (!written || !QFile::setPermissions(candidate, QFile::ReadOwner | QFile::WriteOwner)) {
-        return false;
-    }
-
-    const auto sourceName = QFile::encodeName(candidate);
-    const auto targetName = QFile::encodeName(destination.absoluteFilePath());
-    return ::renameat2(AT_FDCWD, sourceName.constData(), AT_FDCWD, targetName.constData(), RENAME_NOREPLACE) == 0;
+    const bool modified = database.isModified(), nonDataChanges = database.hasNonDataChanges();
+    database.setEmitModified(false);
+    // The same random slug policy as upstream Database::saveAs (no crypto/KDBX implementation here).
+    database.metadata()->customData()->set(CustomData::RandomSlug,
+        Random::instance()->randomArray(Random::instance()->randomUIntRange(64, 512)).toHex());
+    auto serialize = [&](QFile& file) {
+        KeePass2Writer writer;
+        return writer.writeDatabase(&file, &database) && !writer.hasError();
+    };
+    auto verify = [&](QFile& file) {
+        ReadLimits limits;
+        ReadStats stats;
+        ReadFailure failure = ReadFailure::None;
+        GnomeRead::Context context{limits, stats, failure, static_cast<quint64>(file.size())};
+        GnomeRead::Scope scope(context);
+        KeePass2Reader header;
+        Database headerData;
+        if (!header.readDatabase(&file, {}, &headerData) || header.version() > KeePass2::FILE_VERSION_MAX
+            || failure != ReadFailure::None) return false;
+        context.sourceVersion = header.version();
+        Database verified;
+        verified.setEmitModified(false);
+        KeePass2Reader reader;
+        return file.seek(0) && reader.readDatabase(&file, database.key(), &verified)
+            && failure == ReadFailure::None;
+    };
+    auto result = archive ? SafeSave::archive(path, serialize, verify, lease) : SafeSave::write(path, expected, serialize, verify);
+    if (modified) database.markAsModified(); else database.markAsClean();
+    if (nonDataChanges && !database.hasNonDataChanges()) database.markNonDataChange();
+    database.setEmitModified(true);
+    return result;
 }
 }
 
@@ -143,7 +146,7 @@ bool CoreSession::createFixture(const std::string& path, FixtureFormat format)
         }
     }
 
-    return writeNewCopy(fixture, QString::fromStdString(path));
+    return writeDatabase(fixture, QString::fromStdString(path), nullptr).committed();
 }
 
 bool CoreSession::unlock(const std::string& path, const std::string& password, const ReadLimits& limits)
@@ -201,6 +204,17 @@ bool CoreSession::unlock(const std::string& path, const std::string& password, c
         if (static_cast<quint64>(count) > remaining) { readFailure = ReadFailure::ResourceLimit; return false; }
         encrypted.append(buffer, count);
     }
+    struct stat after{};
+    FileStamp baseline;
+    if (!::fstat(descriptor, &after)) {
+        const auto digest = QCryptographicHash::hash(encrypted, QCryptographicHash::Sha256).toHex().toStdString();
+        const auto beforeStamp = SafeSave::stamp(status, digest), afterStamp = SafeSave::stamp(after, digest);
+        struct stat named{};
+        if (SafeSave::same(beforeStamp, afterStamp) && after.st_size == encrypted.size()
+            && after.st_uid == ::geteuid() && after.st_nlink == 1 && !::lstat(path.c_str(), &named)
+            && S_ISREG(named.st_mode) && named.st_dev == after.st_dev && named.st_ino == after.st_ino)
+            baseline = afterStamp;
+    }
     file.close();
     QBuffer snapshot(&encrypted);
     if (!snapshot.open(QIODevice::ReadOnly)) { readFailure = ReadFailure::IoError; return false; }
@@ -231,11 +245,23 @@ bool CoreSession::unlock(const std::string& path, const std::string& password, c
     candidate->markAsClean();
     candidate->setEmitModified(true);
     database = std::move(candidate);
+    const auto absolute = QFileInfo(QString::fromStdString(path)).absoluteFilePath();
+    // Recovery records are immutable input copies; recovered models always Save As.
+    if (SafeSave::isRecoveryPath(absolute)) {
+        recoveryPath = QFileInfo(QFileInfo(absolute).canonicalFilePath()).absolutePath().toStdString();
+    } else {
+        sourcePath = absolute.toStdString();
+        sourceStamp = baseline;
+    }
     return true;
 }
 
 void CoreSession::lock()
 {
+    sourcePath.clear();
+    recoveryPath.clear();
+    sourceStamp = {};
+    saveResult = {};
     if (database) {
         // The upstream FileWatcher can still be calculating a checksum.
         QThreadPool::globalInstance()->waitForDone();
@@ -429,11 +455,44 @@ bool CoreSession::rename(const std::string& id, const std::string& title)
 
 bool CoreSession::saveCopy(const std::string& path)
 {
-    return database && writeNewCopy(*database, QString::fromStdString(path));
+    return persist(path, false, false);
+}
+
+bool CoreSession::isModified() const { return database && database->isModified(); }
+SaveResult CoreSession::checkpoint(const std::string& path, int* lease)
+{
+    if (!database) { SaveResult result; result.status = SaveStatus::NoSource; return result; }
+    return writeDatabase(*database, QString::fromStdString(path), nullptr, true, lease);
+}
+bool CoreSession::saveAs(const std::string& path) { return persist(path, false, true); }
+bool CoreSession::save()
+{
+    if (!hasSource()) { saveResult = {}; saveResult.status = SaveStatus::NoSource; return false; }
+    return persist(sourcePath, true, true);
+}
+bool CoreSession::persist(const std::string& path, bool replace, bool associate)
+{
+    saveResult = {};
+    if (!database) { saveResult.status = SaveStatus::NoSource; return false; }
+    saveResult = writeDatabase(*database, QString::fromStdString(path), replace ? &sourceStamp : nullptr);
+    if (!saveResult.committed()) return false;
+    if (associate) {
+        sourcePath = saveResult.target;
+        sourceStamp = saveResult.saved;
+        recoveryPath.clear();
+        database->markAsClean();
+    }
+    return true;
+}
+
+std::string CoreSession::copyUsername(const std::string& id) const
+{
+    const auto* entry = findEntry(id);
+    return entry && !entry->isRecycled() ? entry->resolveMultiplePlaceholders(entry->username()).toStdString() : std::string{};
 }
 
 std::string CoreSession::copyPassword(const std::string& id) const
 {
     const auto* entry = findEntry(id);
-    return entry && !entry->isRecycled() ? entry->password().toStdString() : std::string{};
+    return entry && !entry->isRecycled() ? entry->resolveMultiplePlaceholders(entry->password()).toStdString() : std::string{};
 }

@@ -1,0 +1,13 @@
+{
+  "fontconfig_version": "2.17.1-3ubuntu1",
+  "fontconfig_build_id": "ba34313ed6d1ed4a41bff3f109aa8b0365428a3c",
+  "fontconfig_sha256": "cabcdfea3d61540e8aa7f93a29642da1d1e35c8f5fd13549f4b8ee2ee0ab28f0",
+  "upstream_source_sha256": "f07504cef87f171ee1748352e2df9b9f125352f620fa0d03a9284306ea2c40a4",
+  "source_files": ["src/fcint.h", "src/fcpat.c", "src/fccharset.c"],
+  "architecture": "x86_64 LP64",
+  "mesa_version": "26.0.8-1ubuntu0.3",
+  "mesa_build_id": "fa4e884aa7a23eaf80dc04ea27eb5da408865051",
+  "mesa_sha256": "5f30ae2f9e7fbcb381d75b39983126b65c06fb32d7f4cbb7e49e70a750996cac",
+  "mesa_source_sha256": "caf1c0061a68e88dfa74967a7e780c0e85d65b6c4e334cd69095a5dc54ad78bc",
+  "scope": "Test-only read-only relative-offset and Mesa empty-context ownership reconstruction after unsuppressed LSan snapshot; never a production dependency or blanket library suppression"
+}

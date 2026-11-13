@@ -1,0 +1,11 @@
+# Independent test tool: link the pristine core, without CoreOverrides or GTK.
+add_executable(gnome_reference_fixture "${KPXC_GNOME_SOURCE}/tests/known_data.cpp")
+target_compile_definitions(gnome_reference_fixture PRIVATE GNOME_REFERENCE_TOOL)
+target_include_directories(gnome_reference_fixture SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
+target_link_libraries(gnome_reference_fixture PRIVATE keepassxc_core text_stream)
+set_target_properties(gnome_reference_fixture PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+add_executable(gnome_reference_stream_tests "${KPXC_GNOME_SOURCE}/tests/stream_finalization.cpp")
+target_include_directories(gnome_reference_stream_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
+target_link_libraries(gnome_reference_stream_tests PRIVATE keepassxc_core text_stream)
+set_target_properties(gnome_reference_stream_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

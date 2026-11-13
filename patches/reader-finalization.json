@@ -24,6 +24,7 @@
     "0001-reader-finalization.patch",
     "0002-tests-truncate-reused-buffer.patch",
     "0003-read-resource-policy.patch",
-    "0004-xml-model-preservation.patch"
+    "0004-xml-model-preservation.patch",
+    "0005-stream-cipher-empty-final-block.patch"
   ]
 }

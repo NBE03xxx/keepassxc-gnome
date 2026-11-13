@@ -7,6 +7,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from provenance import verify
 
 
 def main():
@@ -20,7 +23,7 @@ def main():
     upstream, output = args.upstream.resolve(), args.output.resolve()
     if upstream == output or upstream in output.parents or output in upstream.parents:
         raise RuntimeError("Overrides must be outside the reference checkout")
-    commit = subprocess.check_output(["git", "-C", str(upstream), "rev-parse", "HEAD"], text=True).strip()
+    commit = verify(upstream)["commit"]
     if commit != manifest["commit"]:
         raise RuntimeError("Upstream commit differs from the reviewed patch baseline")
     output.parent.mkdir(parents=True, exist_ok=True)

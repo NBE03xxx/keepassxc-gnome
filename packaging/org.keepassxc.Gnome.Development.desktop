@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=KeePassXC GNOME Development
+Name[ja]=KeePassXC GNOME 開発版
+Comment=Development password manager — synthetic databases only
+Comment[ja]=開発中のパスワードマネージャー — 合成データ専用
+Exec=keepassxc-gnome
+Icon=org.keepassxc.Gnome.Development
+Terminal=false
+Categories=Utility;Security;
+StartupNotify=true
+DBusActivatable=false

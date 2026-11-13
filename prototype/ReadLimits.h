@@ -2,7 +2,8 @@
 
 #include <cstdint>
 
-enum class ReadFailure { None, InvalidInput, ResourceLimit, UnsupportedKdf, IoError, UnsupportedData };
+enum class ReadFailure { None, InvalidInput, ResourceLimit, UnsupportedKdf, IoError, UnsupportedData,
+                         Cancelled, Timeout, WorkerFailure, RecoveryFailure };
 
 // Provisional development policy, not KDBX format limits. No UI bypass is
 // provided. Tests may use smaller budgets to exercise exact boundaries.

@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/keepassxreboot/keepassxc.git",
+  "tag": "2.8.0",
+  "version": "2.8.0",
+  "commit": "1c2f23ef5914c0f442a00533def1689857afb5a7",
+  "tree_sha256": "28e39c78d82595bcf5b1e8af81eb4b52f18d18d26a8033e451490e1f85f3e895",
+  "source_date_epoch": 1792594534
+}

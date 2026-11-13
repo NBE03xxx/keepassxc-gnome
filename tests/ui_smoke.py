@@ -30,8 +30,8 @@ def wait_for(predicate, description, timeout=15):
     app = application()
     if app:
         for item in walk(app):
-            if item.get_role_name() in ("dialog", "alert", "frame"):
-                print("OPEN WINDOW", item.get_role_name(), item.get_name(), flush=True)
+            if item.get_role_name() in ("dialog", "alert", "frame") or "button" in item.get_role_name():
+                print("OPEN WIDGET", item.get_role_name(), item.get_name(), "sensitive=", item.get_state_set().contains(Atspi.StateType.SENSITIVE), flush=True)
     raise AssertionError(description)
 
 
@@ -53,8 +53,10 @@ def named(name, role=None):
 
 
 def click(name):
-    button = wait_for(lambda: named(name, "button"), "button " + name)
-    assert button.get_state_set().contains(Atspi.StateType.SENSITIVE), name + " is disabled"
+    def ready():
+        item = named(name, "button")
+        return item if item and item.get_state_set().contains(Atspi.StateType.SENSITIVE) else None
+    button = wait_for(ready, "enabled button " + name)
     assert button.get_action_iface().do_action(0), "activate " + name
 
 
@@ -91,9 +93,12 @@ set_text(search, "no-such-synthetic-entry")
 wait_for(lambda: not named("合成 UI Entry"), "search excludes nonmatching entry")
 set_text(search, "合成 UI")
 row = wait_for(lambda: named("合成 UI Entry", "list item"), "search finds matching entry")
-selection = row.get_parent().get_selection_iface()
-assert selection and selection.select_child(row.get_index_in_parent()), "select entry"
-wait_for(lambda: row.get_state_set().contains(Atspi.StateType.SELECTED), "entry is selected")
+selected_row = row
+while selected_row.get_parent() and not selected_row.get_parent().get_selection_iface():
+    selected_row = selected_row.get_parent()
+selection = selected_row.get_parent().get_selection_iface()
+assert selection and selection.select_child(selected_row.get_index_in_parent()), "select entry"
+wait_for(lambda: selected_row.get_state_set().contains(Atspi.StateType.SELECTED), "entry is selected")
 click("編集")
 dialog = wait_for(lambda: named("エントリーを編集", "dialog"), "existing entry editor")
 fields = editables(dialog)
@@ -104,10 +109,11 @@ wait_for(lambda: not named("エントリーを編集", "dialog"), "edit dialog c
 wait_for(lambda: not named("合成 UI Entry"), "renamed entry leaves old search results")
 set_text(search, "")
 wait_for(lambda: named("変更済み UI Entry"), "edited entry appears after clearing search")
-click("+")
+click("グループを作成")
 dialog = wait_for(lambda: named("グループを作成", "alert"), "group creation")
 set_text(editables(dialog)[0], "合成 UI Group")
-click("保存")
+group_save = wait_for(lambda: next((item for item in walk(dialog) if item.get_name() == "保存" and "button" in item.get_role_name()), None), "group save button")
+assert group_save.get_action_iface().do_action(0)
 wait_for(lambda: named("合成 UI Group", "label"), "new group appears")
 click("ロック")
 wait_for(lambda: named("未保存の変更を破棄しますか？", "alert"), "discard confirmation")

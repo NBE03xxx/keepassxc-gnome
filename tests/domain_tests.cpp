@@ -1,4 +1,10 @@
 #include "CoreSession.h"
+#ifdef GNOME_PROCESS_TEST
+#include "gnome/RemoteSession.h"
+using TestedSession = RemoteSession;
+#else
+using TestedSession = CoreSession;
+#endif
 
 #include "core/Database.h"
 #include "core/Entry.h"
@@ -26,7 +32,13 @@ int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
     check(CoreSession::initialize(), "upstream crypto initialization");
-    CoreSession session;
+#ifdef GNOME_PROCESS_TEST
+    // The package/VM smoke test must exercise the explicitly supplied installed
+    // helper, rather than silently using the sibling from the development tree.
+    TestedSession session(argc >= 3 ? QString::fromLocal8Bit(argv[2]) : QString{});
+#else
+    TestedSession session;
+#endif
     check(!session.create("Synthetic", ""), "empty creation password refused");
     check(!session.create("", "synthetic-phase3-password"), "empty database name refused");
     check(session.create("合成 DB", "synthetic-phase3-password"), "create database");
@@ -42,6 +54,9 @@ int main(int argc, char** argv)
     check(session.search("title:Synthetic", group).size() == 1, "upstream search syntax");
     check(session.search("missing").empty(), "nonmatching search");
     check(session.entry(entry, details) && details.password == "synthetic-secret", "entry details");
+    check(session.copyUsername(entry) == "synthetic-user" && session.copyPassword(entry) == "synthetic-secret",
+          "copy plain credentials");
+    check(session.copyUsername("invalid").empty() && session.copyPassword("invalid").empty(), "unknown copy target refused");
     details.title = "変更済み";
     details.username = "updated-user";
     check(session.updateEntry(details), "entry edit");
@@ -67,9 +82,11 @@ int main(int argc, char** argv)
           "edit retained history");
     check(session.removeEntry(entry) && session.entries().empty(), "entry recycling");
     check(!session.entry(entry, details), "recycled entry hidden");
+    check(session.copyUsername(entry).empty() && session.copyPassword(entry).empty(), "recycled entry cannot be copied");
     check(session.removeGroup(group) && session.groups().size() == 1, "group recycling");
     check(CoreSession::generatePassword(32).size() == 32, "existing password generator");
     check(CoreSession::generatePassword(1).empty(), "generator length bounds");
     session.lock();
+    check(session.copyUsername(entry).empty() && session.copyPassword(entry).empty(), "lock revokes copy operations");
     std::puts("PASS database, groups, entries, search, history, generator, save and lock");
 }

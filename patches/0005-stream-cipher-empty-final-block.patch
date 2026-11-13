@@ -1,0 +1,15 @@
+--- a/src/streams/SymmetricCipherStream.cpp
++++ b/src/streams/SymmetricCipherStream.cpp
+@@ -204,6 +204,12 @@
+ {
+     Q_ASSERT(m_streamCipher || lastBlock || (m_buffer.size() == blockSize()));
+ 
++    // A stream cipher has no final padding. A full buffer was already
++    // processed by writeData(); do not send an empty final block to it.
++    if (m_streamCipher && lastBlock && m_buffer.isEmpty()) {
++        return !m_error;
++    }
++
+     if (lastBlock && !m_streamCipher) {
+         QByteArray end;
+         if (!m_cipher->finish(m_buffer)) {

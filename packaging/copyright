@@ -1,0 +1,24 @@
+KeePassXC GNOME Native Edition — development artifact
+
+Independent front-end, adapters, scripts and original icon:
+Copyright 2026 KeePassXC GNOME contributors.
+Licensed under GNU GPL version 2 OR version 3; see LICENSE.GPL-2 and
+LICENSE.GPL-3 in this directory. Source headers retain their own notices.
+
+KeePassXC 2.8.0 and code/resources linked from it:
+See upstream-COPYING and upstream-LICENSE.* in this directory for the complete
+upstream notices and license texts. This includes third-party MIT, BSD, LGPL,
+OFL, CC0, and Apache notices; consult the individual corresponding source files.
+Nokia's QtIOCompressor is used under its LGPL-2.1 alternative (with its shipped
+exception) or GPL-3, as stated in its source. The upstream COPYING is included
+unchanged; it covers a superset of resources in this reduced build.
+
+The exact upstream commit, patch hashes, source archive digest and package
+inputs are recorded in build-manifest.json. Distribute the matching
+*.source.tar.xz together with a binary artifact. It includes the fixed upstream,
+independent sources, patches and build/test scripts. A link to the upstream
+repository alone is not the complete corresponding source of this application.
+
+Qt, GTK, GLib, libadwaita, Botan and other system shared libraries are not
+bundled. Their notices and sources are provided by their Ubuntu packages.
+This development package is not an official KeePassXC release.

@@ -133,8 +133,8 @@ msgstr "保存"
 msgid "Save a copy"
 msgstr "別名コピーを保存"
 
-msgid "Save a copy first if you want to keep your changes."
-msgstr "変更を残す場合は、先に別名コピーを保存してください。"
+msgid "Save a copy first if you want to keep your changes. Confirmed edits also remain encrypted in Recover unsaved changes until you remove those records."
+msgstr "変更を残す場合は、先に別名コピーを保存してください。完了した編集は、記録を削除するまで「未保存の変更を復旧」にも暗号化して残ります。"
 
 msgid "Save a database copy"
 msgstr "データベースの別名コピーを保存"
@@ -189,3 +189,180 @@ msgstr "ローカルの通常ファイルとしてデータベースを読み込
 
 msgid "This database contains data this build cannot safely preserve. The file was not changed."
 msgstr "このデータベースには、この開発版で安全に保持できないデータが含まれています。ファイルは変更していません。"
+
+msgid "The operation exceeded its time limit. The database is locked."
+msgstr "処理時間の上限を超えました。データベースはロックされています。"
+
+msgid "Cancelled. The database is locked."
+msgstr "処理をキャンセルしました。データベースはロックされています。"
+
+msgid "The database worker stopped unexpectedly. The database is locked."
+msgstr "データベース処理が予期せず停止しました。データベースはロックされています。"
+
+msgid "Operation interrupted. The database is locked. Use Recover unsaved changes to check confirmed edits; the last operation may be incomplete. If saving, check the destination and Recovery files."
+msgstr "処理を中断してロックしました。「未保存の変更を復旧」で、完了した編集を確認してください。最後の操作は未完了の可能性があります。保存中だった場合は保存先と復旧用ファイルも確認してください。"
+
+msgid "Locked. If a save was in progress, check its destination and Recovery files."
+msgstr "ロックしました。保存中だった場合は保存先と復旧用ファイルを確認してください。"
+
+msgid "Database menu"
+msgstr "データベースメニュー"
+
+msgid "Save as a new file"
+msgstr "新しいファイルに保存"
+
+msgid "Recovery files"
+msgstr "復旧用ファイル"
+
+msgid "Database saved and verified."
+msgstr "データベースを保存し、検証しました。"
+
+msgid "Copy saved. The current database still has its previous save state."
+msgstr "コピーを保存しました。編集中のデータベースの保存状態は変わりません。"
+
+msgid "A file already exists at that location. Choose a new filename."
+msgstr "同じ場所にファイルが存在します。新しいファイル名を指定してください。"
+
+msgid "The destination changed outside this application. Review recovery files and save your changes under a new name."
+msgstr "保存先が別のアプリなどで更新されています。復旧用ファイルを確認し、変更を新しい名前で保存してください。"
+
+msgid "This path cannot be safely replaced. Choose a new local file without symbolic or hard links."
+msgstr "この保存先は安全に置き換えられません。シンボリックリンクやハードリンクを使わない新しいローカルファイルを指定してください。"
+
+msgid "Another save is using this destination. Try again after it finishes."
+msgstr "別の保存処理がこの保存先を使用しています。完了後にやり直してください。"
+
+msgid "The recovery limit for this file has been reached. Review and remove older recovery records before saving."
+msgstr "このファイルの復旧記録が上限に達しました。古い記録を確認して削除してから保存してください。"
+
+msgid "The save result is uncertain. Review the destination and recovery files before retrying."
+msgstr "保存結果を確定できませんでした。やり直す前に保存先と復旧用ファイルを確認してください。"
+
+msgid "The saved candidate could not be read back safely. The destination was not replaced."
+msgstr "保存候補を安全に再読み込みできませんでした。保存先は置き換えていません。"
+
+msgid "Could not save. Check available space and permissions. Review recovery files before retrying."
+msgstr "保存できませんでした。空き容量とアクセス権を確認してください。やり直す前に復旧用ファイルを確認してください。"
+
+msgid "Choose the database folder to inspect"
+msgstr "調べるデータベースのフォルダーを選択"
+
+msgid "Encrypted copies from this application's saves. Open a copy, check its contents, then save under a new name. The original is never restored automatically."
+msgstr "このアプリの保存時に残した暗号化コピーです。コピーを開いて内容を確認し、新しい名前で保存してください。元のファイルを自動で復元することはありません。"
+
+msgid "The recovery scan was incomplete. Some records may be missing. Review the listed records or check folder permissions, then retry."
+msgstr "復旧用ファイルの検索が完了していません。表示されていない記録がある可能性があります。一覧の記録やフォルダーのアクセス権を確認してからやり直してください。"
+
+msgid "Completed save"
+msgstr "保存完了"
+
+msgid "External update detected"
+msgstr "外部からの更新を検出"
+
+msgid "Interrupted or unfinished save"
+msgstr "中断または未完了の保存"
+
+msgid "Saved candidate"
+msgstr "保存した候補"
+
+msgid "Version before saving"
+msgstr "保存前の版"
+
+msgid "Displaced destination"
+msgstr "置き換え時の保存先"
+
+msgid "Unfinished candidate"
+msgstr "未完了の候補"
+
+msgid "Matches the recorded encrypted hash; contents still require unlocking."
+msgstr "記録した暗号化ハッシュと一致しています。内容の確認にはロック解除が必要です。"
+
+msgid "Unverified copy; unlocking and data validation are required."
+msgstr "未検証のコピーです。ロック解除とデータ検証が必要です。"
+
+msgid "Open copy"
+msgstr "コピーを開く"
+
+msgid "Remove record"
+msgstr "記録を削除"
+
+msgid "Remove recovery record?"
+msgstr "復旧記録を削除しますか？"
+
+msgid "This permanently deletes the encrypted copies in this record. Save recovered data under a new name first."
+msgstr "この記録の暗号化コピーを完全に削除します。復旧したデータは先に新しい名前で保存してください。"
+
+msgid "Remove"
+msgstr "削除"
+
+msgid "Could not confirm removal. Review recovery files again; the record may be active or contain unexpected files."
+msgstr "削除の完了を確認できませんでした。復旧用ファイルを再確認してください。記録が使用中か、想定外のファイルが含まれる可能性があります。"
+
+msgid "No recovery files found"
+msgstr "復旧用ファイルが見つかりません"
+
+msgid "Recover unsaved changes"
+msgstr "未保存の変更を復旧"
+
+msgid "Some system lock notifications are unavailable. The five-minute inactivity lock remains enabled."
+msgstr "一部のシステムロック通知を受信できません。5分間操作しない場合のロックは有効です。"
+
+msgid "The change could not be protected. The database is locked. Recover earlier confirmed edits from Recover unsaved changes."
+msgstr "変更を保護できなかったため、データベースをロックしました。「未保存の変更を復旧」から、それまでに完了した編集を回収してください。"
+
+msgid "Automatically locked. Confirmed edits are available in Recover unsaved changes. Unconfirmed form input was cleared."
+msgstr "自動ロックしました。完了した編集は「未保存の変更を復旧」から回収できます。未確定のフォーム入力は消去しました。"
+
+msgid "Automatically locked. Input was cleared."
+msgstr "自動ロックし、入力を消去しました。"
+
+msgid "Wait for desktop lock and sleep protection to be ready before opening a database."
+msgstr "データベースを開く前に、デスクトップのロック解除とスリープ保護の準備が完了するまでお待ちください。"
+
+msgid "Automatic recovery copy"
+msgstr "自動復旧コピー"
+
+msgid "Save the entry to protect it in recovery. Form input is cleared when the application locks."
+msgstr "エントリーを保存すると復旧用コピーで保護されます。アプリのロック時には未確定のフォーム入力を消去します。"
+
+msgid "Use the clipboard?"
+msgstr "クリップボードを使用しますか？"
+
+msgid "GNOME or a clipboard history tool can retain copied credentials after this app's ten-second expiry or lock. Use clipboard copying only if you accept this limitation."
+msgstr "このアプリで10秒が経過した後やロックした後も、GNOME やクリップボード履歴ツールに認証情報のコピーが残る場合があります。この制約を確認してからコピー機能を使用してください。"
+
+msgid "Copy"
+msgstr "コピー"
+
+msgid "This value is too large to copy."
+msgstr "この値は大きすぎるためコピーできません。"
+
+msgid "The clipboard could not accept this value."
+msgstr "クリップボードにコピーできませんでした。"
+
+msgid "Copied. This app stops providing the value after ten seconds; GNOME or other apps may retain a copy."
+msgstr "コピーしました。このアプリでの提供は10秒で停止しますが、GNOME や他のアプリにコピーが残る場合があります。"
+
+msgid "Encrypted copies from this application's saves. Copies belonging to unlocked databases appear after locking. Open a copy, check its contents, then save under a new name."
+msgstr "このアプリの保存時に残した暗号化コピーです。解除中のデータベースのコピーは、ロック後に表示されます。コピーを開いて内容を確認し、新しい名前で保存してください。"
+
+msgid "Lock database before sleep"
+msgstr "スリープ前にデータベースをロック"
+
+msgid "Groups"
+msgstr "グループ"
+
+msgid "No entries. Create an entry or change your search."
+msgstr "エントリーがありません。作成するか、検索条件を変更してください。"
+
+msgid "Keyboard shortcuts"
+msgstr "キーボードショートカット"
+
+msgid "Ctrl+O  Open database\nCtrl+S  Save\nCtrl+Shift+S  Save as a new file\nCtrl+L  Lock\nCtrl+F  Search entries\nCtrl+N  New entry\nCtrl+Shift+N  New database"
+msgstr "Ctrl+O  データベースを開く\nCtrl+S  保存\nCtrl+Shift+S  別名で保存\nCtrl+L  ロック\nCtrl+F  エントリーを検索\nCtrl+N  エントリーを作成\nCtrl+Shift+N  データベースを作成"
+
+msgid "Saved"
+msgstr "保存済み"
+
+msgid "Close"
+msgstr "閉じる"

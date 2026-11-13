@@ -30,6 +30,8 @@
 
 **限界。** 本試験は全メタデータ、全グループ設定、KDF の全パラメーター、形式の全バイトを比較していない。上流の `CustomDataItem::operator==` は項目の変更日時を比較しない（`upstream/keepassxc/src/core/CustomData.h:37`）。XML のバイト同一性や未知構造の保持を証明しない。編集後の TOTP・添付・履歴・任意属性・CustomData 等の保持は、既存の別の合成往復試験と併用する（`tests/xml_model_policy.cpp:141`、`prototype/core_probe.cpp:69`）。
 
+その後、[無変更の本家コアによる既知データの比較](known-data-compatibility.md)を別試験として追加した。上記の公開 fixture 試験自体を全項目比較に変更したわけではなく、原本2件の拒否制約も維持する。
+
 ## 拒否の根拠と未解決事項
 
 - **確認済み：Format300。** 本家の reader は解決できないグループ参照を警告しつつ読込を続ける（`upstream/keepassxc/src/format/KdbxXmlReader.cpp:120`）。アプリ側の保持検査は同じ状態を `UnsupportedData` として拒否する（`patches/0004-xml-model-preservation.patch:179`）。参照の自動削除・置換は行っていない。

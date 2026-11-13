@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ReadLimits.h"
+#include "SaveTypes.h"
 
 #include <memory>
 #include <string>
@@ -66,9 +67,22 @@ public:
     static std::string generatePassword(unsigned length = 24);
     bool rename(const std::string& id, const std::string& title);
     bool saveCopy(const std::string& path);
+    bool saveAs(const std::string& path);
+    bool save();
+    bool hasSource() const { return !sourcePath.empty() && sourceStamp.valid(); }
+    bool isModified() const;
+    SaveResult lastSaveResult() const { return saveResult; }
+    SaveResult checkpoint(const std::string& logicalPath, int* lease = nullptr);
+    std::string recoveryDirectory() const { return recoveryPath; }
+    std::string copyUsername(const std::string& id) const;
     std::string copyPassword(const std::string& id) const;
 
 private:
+    bool persist(const std::string& path, bool replace, bool associate);
+    std::string sourcePath;
+    std::string recoveryPath;
+    FileStamp sourceStamp;
+    SaveResult saveResult;
     Entry* findEntry(const std::string& id) const;
     std::unique_ptr<Database> database;
     ReadFailure readFailure = ReadFailure::None;
