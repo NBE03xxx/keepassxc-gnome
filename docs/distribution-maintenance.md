@@ -2,6 +2,8 @@
 
 2026-11-13。対象は Ubuntu 26.04 / GNOME 50 / Wayland。現在は合成データによる検証用であり、公開・実データ利用の承認を意味しない。
 
+**2026-11-14の現在地。** この文書の試験件数・dev1の結果は手順6時点の記録。後のdev4の画面確認に続き、[dev5の梱包とVM検証](session-guard-candidate-validation.md)、[実機更新・5分経過後のOrca確認](dev5-physical-orca.md)を今回の操作範囲で完了した。初回のqzv読み上げの入力条件は不明で、未解決の観測として残す。GUIの生LSanと長時間の増加基準も[公開前レビュー](pre-release-review.md)で区別している。
+
 ## 配布構成
 
 パッケージ名は `keepassxc-gnome-development`。本家 `keepassxc` を置き換える Provides / Conflicts / Replaces、MIME の既定変更、サービス登録、ユーザー設定を変更する maintainer script は持たせない。

@@ -2,7 +2,9 @@
 
 公開時の対象は **Ubuntu 26.04での日常的な短時間の個人利用** とする。GNOME 50 / Waylandで検証し、残るメモリ保持の性質の調査と最新版のVM→実機の画面確認を実施した。[対象範囲と受入条件](docs/release-scope.md)を参照。
 
-[保持量の追加調査](docs/gui-retention-characterization.md)では描画キャッシュの回収と、検証版libadwaitaのbreakpoint解放漏れを確認した。この依存問題は既知の制限として残す。[最新版候補の確認](docs/short-session-validation.md)はVMと実機の画面・入力・ロックを完了した。整理後の実機Orca音声は未検証。
+[保持量の追加調査](docs/gui-retention-characterization.md)では描画キャッシュの回収と、検証版libadwaitaのbreakpoint解放漏れを確認した。この依存問題は既知の制限として残す。dev4の画面確認に続き、[dev5の実機更新とOrca確認](docs/dev5-physical-orca.md)を今回の操作範囲で完了した。明示した伏せ字の条件で英字は読まれなかったが、初回のqzv読み上げ報告は入力条件不明の観測として残す。
+
+[公開前レビュー](docs/pre-release-review.md)では、初回D-Bus接続失敗時にロック監視なしで解除を許可する経路を修正した。通常の全22試験・ASan / LSanの寿命検査103チェック・分離GNOMEのGUI寿命試験は成功した。[修正版dev5のdeb作成とVM検証](docs/session-guard-candidate-validation.md)後、実機も同じdev5-1へ更新済み。正常な監視開始、作成・編集欄、検索、ロック後の消去と終了を確認した。
 
 Ubuntu 26.04 / GNOME 50 / Wayland 向けの GTK4 + libadwaita アプリの開発版。暗号、KDBX、検索、パスワード生成には KeePassXC の既存コアを使用する。
 
@@ -37,6 +39,7 @@ bash tools/test-ui.sh --save
 bash tools/test-ui.sh --lifetime
 bash tools/test-ui.sh --polish
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --polish
+bash tools/test-ui.sh --guard
 bash tools/test-lifetime.sh --all
 bash tools/test-ui.sh --orca
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --orca
@@ -59,7 +62,7 @@ bash tools/test-source-build.sh
 bash tools/test-reproducibility.sh
 ```
 
-成果物は `build/dist/`。通常環境にインストールせず、先に Ubuntu 26.04 VM で導入・更新・削除と合成データの操作を確認した。VM での結果と未確認事項は [手順6の記録](docs/distribution-maintenance.md#今回の確認結果)に記載する。実ログインの GUI と実機の最終確認、GUI 全体の LSan 判定は残る。`bash tools/check-release.sh` はローカル / CI 用の共通入口であり、公開やインストールを行わない。
+成果物は `build/dist/`。dev5はdeb作成・対応ソース再ビルド・VMの導入／更新／削除・GUIの後、実機更新と今回のOrca確認を完了した。[dev5の固定hashとVM結果](docs/session-guard-candidate-validation.md)、[実機結果と初回読み上げの観測](docs/dev5-physical-orca.md)、[公開前レビューの残件](docs/pre-release-review.md#残件の整理)を参照する。GUIの生LSan非ゼロと長時間の増加基準未達は既知の制限として維持する。`bash tools/check-release.sh` はローカル / CI 用の共通入口であり、公開やインストールを行わない。
 
 ## 構成
 

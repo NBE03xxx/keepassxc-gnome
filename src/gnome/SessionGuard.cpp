@@ -118,7 +118,14 @@ struct SessionGuard::State : std::enable_shared_from_this<State> {
                 auto* proxy = g_dbus_proxy_new_for_bus_finish(result, &error);
                 if (!s.alive) { g_clear_object(&proxy); g_clear_error(&error); return; }
                 s.endpoints[context->index].initialized = true;
-                if (!proxy) { s.available(); g_clear_error(&error); return; }
+                if (!proxy) {
+                    // A transport failure is not evidence that the service is
+                    // simply absent. Keep authentication closed until restart
+                    // can establish notification monitoring successfully.
+                    auto& endpoint = s.endpoints[context->index];
+                    endpoint.active = endpoint.failed = true;
+                    s.lock(); s.available(); g_clear_error(&error); return;
+                }
                 s.endpoints[context->index].proxy = proxy;
                 // The proxy owns weak callback contexts, avoiding a State/proxy cycle.
                 struct Watch { std::weak_ptr<State> state; unsigned index; };

@@ -9,6 +9,7 @@
 #include "gnome/SafeSave.h"
 #include "ReaderFixtures.h"
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QThread>
@@ -44,6 +45,33 @@ void clocks() {
     check(secret.empty() && std::all_of(memory, memory + size, [](char c) { return !c; }), "owned string overwritten before release");
     EntryDetails details{"id", "group", "title", "username", "synthetic-password", "url", "notes"}; Sensitive::wipe(details);
     check(details.password.empty() && details.notes.empty() && details.username.empty(), "all entry fields erased");
+}
+int unavailableBus() {
+    unsigned locks = 0; bool available = true;
+    SessionGuard guard([&] { ++locks; }, [&](bool value) { available = value; });
+    check(guard.blocked(), "bus initialization gates authentication");
+    until([&] { return guard.settled(); }, "unreachable bus initialization completes");
+    check(!available && guard.blocked() && locks, "bus connection failure cannot certify an unlocked desktop");
+    guard.refresh(); pump(20);
+    check(guard.blocked(), "failed connection stays blocked on refresh");
+    return 0;
+}
+void connectionFailures(const QString& executable, const char* address) {
+    QTemporaryDir folder; require(folder.isValid(), "unreachable bus test directory");
+    const auto unreachable = "unix:path=" + folder.filePath("missing.sock");
+    // Fresh executables avoid GLib's cached bus connections. Both the valid
+    // address and the nonexistent socket belong to this synthetic test.
+    for (unsigned buses : {1U, 2U, 3U}) {
+        auto environment = QProcessEnvironment::systemEnvironment();
+        environment.insert("DBUS_SESSION_BUS_ADDRESS", buses & 1 ? unreachable : QString::fromUtf8(address));
+        environment.insert("DBUS_SYSTEM_BUS_ADDRESS", buses & 2 ? unreachable : QString::fromUtf8(address));
+        QProcess child; child.setProcessEnvironment(environment);
+        child.start(executable, {"--bus-connection-failure"});
+        const bool completed = child.waitForFinished(6000);
+        if (!completed || child.exitStatus() != QProcess::NormalExit || child.exitCode())
+            std::fprintf(stderr, "Unreachable bus scenario %u: %s%s\n", buses, child.readAllStandardOutput().constData(), child.readAllStandardError().constData());
+        check(completed && child.exitStatus() == QProcess::NormalExit && !child.exitCode(), "session/system/both connection failures block authentication");
+    }
 }
 struct Read { bool done = false, ok = false; GError* error = nullptr; ~Read() { g_clear_error(&error); } };
 void provide(GdkContentProvider* provider, GOutputStream* stream, Read& read, GCancellable* cancellation = nullptr) {
@@ -263,12 +291,13 @@ void checkpoints(const QString& worker, const QString& cli) {
 }
 }
 int main(int argc, char** argv) {
+    if (argc == 2 && !std::strcmp(argv[1], "--bus-connection-failure")) return unavailableBus();
     require(argc == 3, "lifetime test arguments");
     // GTestDBus forks its watcher: start it before GLib/Qt async threads.
     auto* bus = g_test_dbus_new(G_TEST_DBUS_NONE); g_test_dbus_up(bus); const auto address = std::string(g_test_dbus_get_bus_address(bus));
     g_setenv("DBUS_SYSTEM_BUS_ADDRESS", address.c_str(), TRUE);
     QCoreApplication app(argc, argv); require(CoreSession::initialize(), "lifetime crypto initialization");
-    clocks(); clipboard();
+    clocks(); connectionFailures(QCoreApplication::applicationFilePath(), address.c_str()); clipboard();
     notifications(address.c_str());
     checkpoints(QString::fromLocal8Bit(argv[1]), QString::fromLocal8Bit(argv[2]));
     g_test_dbus_down(bus); g_object_unref(bus);

@@ -18,6 +18,14 @@ elif [[ ${1:-} == --package ]]; then
     kpxc_ui="$PWD/build/ui-package-test"
     export KPXC_UI_APP="$(realpath -- "${2:?staged package launcher required}")"
     [[ -x $KPXC_UI_APP ]]
+elif [[ ${1:-} == --guard ]]; then
+    kpxc_ui="$PWD/build/ui-guard-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_guard.py" KPXC_UI_GUARD_FAILURE=1
+    if [[ -n ${2:-} ]]; then
+        export KPXC_UI_APP="$(realpath -- "$2")"
+        [[ -x $KPXC_UI_APP ]]
+        kpxc_ui+="-package"
+    fi
 elif [[ ${1:-} == --cancel ]]; then
     # A copy of the real UI plus a fault helper; never install or replace the
     # application's real worker. This has no production environment hook.
@@ -120,7 +128,13 @@ if [[ ${KPXC_UI_ORCA:-0} == 1 ]]; then
     orca --debug-file "$KPXC_UI_ROOT/orca-debug.log" >"$KPXC_UI_ROOT/orca.log" 2>&1 &
     orca_pid=$!
 fi
-"$KPXC_UI_APP" > "$KPXC_UI_ROOT/app.log" 2>&1 &
+if [[ ${KPXC_UI_GUARD_FAILURE:-0} == 1 ]]; then
+    # Only this test application's system-bus connection is made unreachable.
+    # GNOME, accessibility and portals retain the working disposable bus.
+    env DBUS_SYSTEM_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/missing-system-bus" "$KPXC_UI_APP" > "$KPXC_UI_ROOT/app.log" 2>&1 &
+else
+    "$KPXC_UI_APP" > "$KPXC_UI_ROOT/app.log" 2>&1 &
+fi
 app_pid=$!
 export KPXC_UI_PID="$app_pid"
 python3 "$KPXC_UI_SCRIPT" > "$KPXC_UI_ROOT/result.log" 2>&1

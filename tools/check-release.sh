@@ -8,7 +8,7 @@ python3 tools/verify-upstream.py
 cmake -S . -B build -G Ninja
 CMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL:-4} cmake --build build
 bash tools/test-lifetime.sh --all
-for mode in '' --cancel --save --lifetime --polish; do
+for mode in '' --cancel --save --lifetime --polish --guard; do
     if [[ -z $mode ]]; then bash tools/test-ui.sh; else bash tools/test-ui.sh "$mode"; fi
 done
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --polish
