@@ -399,3 +399,6 @@ DB作成・解除、グループ名、エントリーの単一行入力から、
 ### v0.1.0のT16導入とGitHub公開操作（2026-11-14）
 
 利用者の明示指示に基づき、ロードマップを含むREADMEを同梱した最終debと完全対応ソース・manifest・SHA256SUMSを新しい出力先へ固定した。3実行ファイルと実装・ビルド・テスト入力は先行の合格候補と同じ。梱包検査とUbuntu26.04 VMの最終deb導入・GUI基本操作・削除・導入前状態への復旧が成功し、VMを通常停止した。T16では利用者がOS認証を行い、旧自作開発版だけを公開パッケージへ移行。公開版0.1.0-1・3実行ファイル・README・日本語catalogが一致し、本家・他の全APTパッケージ・MIME既定設定は不変。DB引数なしで日本語起動した。GitHub非公開脆弱性報告の有効化も確認した。[固定成果物・導入・公開記録](release-v0.1.0-publication.md)。
+
+
+v0.1.0の公開を完了した。[GitHub Release](https://github.com/NBE03xxx/keepassxc-gnome/releases/tag/v0.1.0)へT16導入版と同じdeb、完全対応ソース、manifest、SHA256SUMSを添付した。全4件を再ダウンロードしてSHA256一致、公開後の認証なし参照、最新リリース、タグcommit `b27dfd8215a7f123d7bcac84a43b15199ef16229`、非公開脆弱性報告の有効化を照合した。結果は[公開記録](release-v0.1.0-publication.md)にまとめた。

@@ -36,3 +36,8 @@
 ## 公開指示と実機導入（2026-11-14）
 
 利用者がT16への公開版導入後にGitHubへv0.1.0をリリースするよう明示指示したため、従来の公開保留は解除された。T16への公開版0.1.0-1導入と起動を確認し、GitHub Private vulnerability reportingを有効化してAPIのenabled=trueを照合した。以降のcommit・tag・push・Release公開はこの指示に基づいて実施する。[現在の結果](release-v0.1.0-publication.md)。
+
+
+## 公開完了
+
+[v0.1.0](https://github.com/NBE03xxx/keepassxc-gnome/releases/tag/v0.1.0)を公開した。T16への公開版導入後に実施し、Private vulnerability reportingの有効化、latest、認証なし参照、タグと配布物の一致を確認した。公開済みの正式な結果は[公開記録](release-v0.1.0-publication.md)を参照する。上の草案・保留の記述は過去時点の記録である。

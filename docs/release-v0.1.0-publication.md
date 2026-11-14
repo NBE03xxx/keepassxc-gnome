@@ -50,3 +50,20 @@ Ubuntu26.04 VMでこの最終deb自体の導入、3実行ファイル・表示�
 対象リポジトリは `NBE03xxx/keepassxc-gnome`、public、初回のmain/ref・Releaseは空。GitHub CLIの認証アカウントはNBE03xxx、管理・push権限を確認した。GitHubのPrivate vulnerability reportingを有効化し、APIでenabled=trueを照合した。SECURITY.mdの非公開報告先はこのリポジトリを指す。
 
 公開候補のパス208件と履歴のblob278件を対象に、キャッシュ・build・上流チェックアウト等の混入と、秘密鍵・代表的なトークンパターンを確認し該当はなかった。この検査は秘密情報の不存在を網羅的に証明するものではない。実行ログや認証情報はGitに追加しない。
+
+
+## 公開完了
+
+**T16への公開版導入後、v0.1.0をGitHubへ公開した。** 公開時刻は 2026-11-14 16:29 JST。
+
+- リポジトリ：[NBE03xxx/keepassxc-gnome](https://github.com/NBE03xxx/keepassxc-gnome)
+- Release：[KeePassXC GNOME v0.1.0](https://github.com/NBE03xxx/keepassxc-gnome/releases/tag/v0.1.0)
+- ソースのリリースcommit：`b27dfd8215a7f123d7bcac84a43b15199ef16229`
+- 注釈タグ：`v0.1.0`、tag object `bf2cf09a2e6be292f61cf40f84bc19e918f53141`
+- Release ID：`445111000`。draft=false、prerelease=false、latestを確認。
+
+Releaseへdeb・完全対応ソース・manifest・SHA256SUMSの4件を添付した。下書きのタグ指定APIが404だったため、一覧で取得したRelease IDを使って照合・公開した。実際に4件すべてを再ダウンロードしてローカル固定版とSHA256が一致し、debはT16へ導入したものと同一であることを確認した。公開後は認証なしのAPIでもv0.1.0を参照でき、タグが上記commitを指し、4件のasset digest、最新リリース、Private vulnerability reportingのenabled=trueも照合した。
+
+Giteaのorigin remoteは維持し、GitHub用には別名githubを追加した。今回の公開先はGitHubであり、Giteaへ追加のpushは行っていない。リリースタグはコードとREADMEを固定し、この最終QA記録のcommitはmainへの文書追記として別に扱う。公開後にタグや配布物を差し替えない。
+
+最終照合記録：`.cache/v010-github-final-verification.json`、`.cache/v010-github-assets-verification.json`。既知の長時間メモリ増加、未対応機能、GUI生LSan非ゼロ等は解決扱いにせず、README・Release本文・従来の検証記録に残す。新たな機能実装は行っていない。
