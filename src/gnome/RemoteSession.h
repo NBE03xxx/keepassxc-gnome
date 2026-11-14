@@ -36,6 +36,8 @@ public:
     bool entry(const std::string& id, EntryDetails& details) const;
     std::string addGroup(const std::string& parent, const std::string& name);
     bool renameGroup(const std::string& id, const std::string& name);
+    bool updateGroup(const std::string& id, const std::string& name, int icon = -1);
+    bool setGroupIcon(const std::string& id, int icon);
     bool removeGroup(const std::string& id);
     std::string addEntry(const std::string& group, const EntryDetails& details);
     bool updateEntry(const EntryDetails& details);

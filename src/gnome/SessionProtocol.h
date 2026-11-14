@@ -15,7 +15,7 @@
 
 namespace SessionProtocol {
 inline constexpr quint32 MaximumFrame = 16U << 20;
-inline constexpr int Version = 2; // edit checkpoints and recovery-failure semantics
+inline constexpr int Version = 4; // combined, protected group name/icon edits
 struct Error : std::runtime_error { Error() : std::runtime_error("Invalid worker protocol") {} };
 struct SizeError : Error {};
 
@@ -91,17 +91,18 @@ inline RecoveryRecord recovery(const QJsonValue& value)
 
 inline QJsonArray encode(const EntryDetails& item)
 {
-    return {str(item.id), str(item.group), str(item.title), str(item.username), str(item.password), str(item.url), str(item.notes)};
+    return {str(item.id), str(item.group), str(item.title), str(item.username), str(item.password), str(item.url), str(item.notes), item.icon, item.customIcon};
 }
 inline EntryDetails details(const QJsonValue& value)
 {
-    if (!value.isArray() || value.toArray().size() != 7) throw Error{};
+    if (!value.isArray() || value.toArray().size() != 9) throw Error{};
     const auto a = value.toArray();
-    return {text(a[0]), text(a[1]), text(a[2]), text(a[3]), text(a[4]), text(a[5]), text(a[6])};
+    if (!a[7].isDouble() || a[7].toInt(-2) < -1 || !a[8].isBool()) throw Error{};
+    return {text(a[0]), text(a[1]), text(a[2]), text(a[3]), text(a[4]), text(a[5]), text(a[6]), a[7].toInt(), a[8].toBool()};
 }
 inline bool mutation(const QString& op)
 {
-    return op == "addGroup" || op == "renameGroup" || op == "removeGroup" || op == "addEntry"
+    return op == "addGroup" || op == "renameGroup" || op == "updateGroup" || op == "setGroupIcon" || op == "removeGroup" || op == "addEntry"
         || op == "updateEntry" || op == "removeEntry" || op == "rename";
 }
 inline QByteArray frame(const QJsonObject& object)

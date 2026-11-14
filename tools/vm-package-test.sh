@@ -6,16 +6,17 @@ source /etc/os-release
 [[ $ID == ubuntu && $VERSION_ID == 26.04 ]] || { echo 'Ubuntu 26.04 VM required.' >&2; exit 2; }
 systemd-detect-virt --vm --quiet || { echo 'Refusing non-VM environment.' >&2; exit 2; }
 first=$(realpath -- "${2:?first deb required}")
-[[ $(dpkg-deb -f "$first" Package) == keepassxc-gnome-development ]] || exit 2
+package=$(dpkg-deb -f "$first" Package)
+[[ $package == keepassxc-gnome-development || $package == keepassxc-gnome ]] || exit 2
 if [[ $mode == --plan ]]; then
     exec apt-get --simulate --no-remove install "$first"
 fi
 [[ $EUID == 0 ]] || { echo 'Run installation test with sudo inside the VM.' >&2; exit 2; }
 second=$(realpath -- "${3:?upgrade deb required}")
-[[ $(dpkg-deb -f "$second" Package) == keepassxc-gnome-development ]] || exit 2
+[[ $(dpkg-deb -f "$second" Package) == "$package" ]] || exit 2
 dpkg --compare-versions "$(dpkg-deb -f "$second" Version)" gt "$(dpkg-deb -f "$first" Version)" || exit 2
-if dpkg-query -W -f='${db:Status-Status}' keepassxc-gnome-development 2>/dev/null | grep -q installed; then
-    echo 'Development package already installed; use a disposable baseline VM.' >&2; exit 2
+if dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null | grep -q installed; then
+    echo 'Target package already installed; use a disposable baseline VM.' >&2; exit 2
 fi
 record=$(mktemp -d /tmp/keepass-gnome-package.XXXXXX)
 exec > >(tee "$record/result.log") 2>&1
@@ -30,7 +31,7 @@ printf 'synthetic settings sentinel\n' > "$record/config/keepassxc-gnome/sentine
 printf 'synthetic state sentinel\n' > "$record/state/keepassxc-gnome/recovery/sentinel"
 sha256sum "$record"/{config/keepassxc-gnome,state/keepassxc-gnome/recovery}/sentinel > "$record/sentinels"
 apt-get --yes --no-remove install "$first"
-[[ $(dpkg-query -W -f='${Version}' keepassxc-gnome-development) == "$(dpkg-deb -f "$first" Version)" ]]
+[[ $(dpkg-query -W -f='${Version}' "$package") == "$(dpkg-deb -f "$first" Version)" ]]
 env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH keepassxc-gnome --version
 env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH LC_ALL=C.UTF-8 LANGUAGE=de keepassxc-gnome --language-check | grep -Fx Ready
 for item in keepassxc-gnome keepassxc-gnome-worker keepassxc-gnome-picker; do
@@ -45,10 +46,10 @@ if [[ -n ${KPXC_VM_DOMAIN_TEST:-} && -n ${KPXC_VM_REFERENCE_TOOL:-} ]]; then
         "$KPXC_VM_DOMAIN_TEST" "$KPXC_VM_REFERENCE_TOOL" /usr/libexec/keepassxc-gnome/keepassxc-gnome-worker
 fi
 apt-get --yes --no-remove install "$second"
-[[ $(dpkg-query -W -f='${Version}' keepassxc-gnome-development) == "$(dpkg-deb -f "$second" Version)" ]]
-dpkg --verify keepassxc-gnome-development
+[[ $(dpkg-query -W -f='${Version}' "$package") == "$(dpkg-deb -f "$second" Version)" ]]
+dpkg --verify "$package"
 sha256sum --check "$record/sentinels"
-apt-get --yes purge keepassxc-gnome-development
+apt-get --yes purge "$package"
 [[ ! -e /usr/bin/keepassxc-gnome && ! -L /usr/bin/keepassxc-gnome ]]
 [[ ! -e /usr/libexec/keepassxc-gnome/keepassxc-gnome-worker ]]
 sha256sum --check "$record/sentinels"

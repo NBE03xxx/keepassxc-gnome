@@ -289,8 +289,8 @@ std::vector<GroupSummary> RemoteSession::groups() const
         if (!value.isArray() || value.toArray().size() > 20000) throw Error{};
         for (const auto& row : value.toArray()) {
             const auto a = row.toArray();
-            if (a.size() != 3 || !a[2].isDouble() || a[2].toInt(-1) < 0 || a[2].toInt() > 128) throw Error{};
-            result.push_back({SessionProtocol::text(a[0]), SessionProtocol::text(a[1]), unsigned(a[2].toInt())});
+            if (a.size() != 5 || !a[2].isDouble() || a[2].toInt(-1) < 0 || a[2].toInt() > 128 || !a[3].isDouble() || a[3].toInt(-1) < 0 || !a[4].isBool()) throw Error{};
+            result.push_back({SessionProtocol::text(a[0]), SessionProtocol::text(a[1]), unsigned(a[2].toInt()), a[3].toInt(), a[4].toBool()});
         }
     } catch (const Error&) { impl->trip(ReadFailure::WorkerFailure); return {}; }
     return result;
@@ -304,8 +304,8 @@ std::vector<EntrySummary> RemoteSession::search(const std::string& query, const 
         if (!value.isArray() || value.toArray().size() > 100000) throw Error{};
         for (const auto& row : value.toArray()) {
             const auto a = row.toArray();
-            if (a.size() != 4) throw Error{};
-            result.push_back({SessionProtocol::text(a[0]), SessionProtocol::text(a[1]), SessionProtocol::text(a[2]), SessionProtocol::text(a[3])});
+            if (a.size() != 6 || !a[4].isDouble() || a[4].toInt(-1) < 0 || !a[5].isBool()) throw Error{};
+            result.push_back({SessionProtocol::text(a[0]), SessionProtocol::text(a[1]), SessionProtocol::text(a[2]), SessionProtocol::text(a[3]), a[4].toInt(), a[5].toBool()});
         }
     } catch (const Error&) { impl->trip(ReadFailure::WorkerFailure); return {}; }
     return result;
@@ -320,6 +320,8 @@ bool RemoteSession::entry(const std::string& id, EntryDetails& result) const
 }
 std::string RemoteSession::addGroup(const std::string& parent, const std::string& name) { return impl->text("addGroup", {str(parent), str(name)}); }
 bool RemoteSession::renameGroup(const std::string& id, const std::string& name) { return impl->boolean("renameGroup", {str(id), str(name)}); }
+bool RemoteSession::updateGroup(const std::string& id, const std::string& name, int icon) { return impl->boolean("updateGroup", {str(id), str(name), icon}); }
+bool RemoteSession::setGroupIcon(const std::string& id, int icon) { return impl->boolean("setGroupIcon", {str(id), icon}); }
 bool RemoteSession::removeGroup(const std::string& id) { return impl->boolean("removeGroup", {str(id)}); }
 std::string RemoteSession::addEntry(const std::string& group, const EntryDetails& value) { return impl->text("addEntry", {str(group), encode(value)}); }
 bool RemoteSession::updateEntry(const EntryDetails& value) { return impl->boolean("updateEntry", {encode(value)}); }

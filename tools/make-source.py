@@ -10,7 +10,7 @@ import tarfile
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'lib'))
 from provenance import ROOT, verify
 
-FILES = ['CMakeLists.txt', 'README.md', 'AGENTS.md', 'LICENSE.GPL-2', 'LICENSE.GPL-3', '.gitignore']
+FILES = ['CMakeLists.txt', 'README.md', 'SECURITY.md', 'AGENTS.md', 'LICENSE.GPL-2', 'LICENSE.GPL-3', '.gitignore']
 DIRECTORIES = ['src', 'prototype', 'tests', 'cmake', 'po', 'patches', 'packaging', 'tools', 'docs']
 
 def create(destination, version):

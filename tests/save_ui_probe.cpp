@@ -52,21 +52,23 @@ struct SaveUiProbe {
         case 0:
             if (w.guard && !w.guard->settled()) return G_SOURCE_CONTINUE;
             w.submit([this](RemoteSession& session) { return session.unlock(source, CoreSession::FixturePassword); }, [this](bool ok) {
-                check(ok, "open fixture"); ui->unlocked = ui->sourceKnown = true;
+                check(ok, "open fixture"); ui->hasOpenedDatabase = ui->unlocked = ui->sourceKnown = true;
                 gtk_stack_set_visible_child_name(ui->stack, "unlocked"); ui->refresh();
             }); break;
         case 1: edit("Synthetic first GUI save"); break;
         case 2: w.saveDatabase(target, true); break;
         case 3:
-            check(status("Database saved and verified.") && !w.dirty && w.sourceKnown, "Save As publishes verified clean state");
+            check(status("Database saved.") && !w.dirty && w.sourceKnown, "Save As publishes verified clean state");
+            check(w.currentPath == target && w.recent.path() == target, "associated save updates title path and recent file");
             afterFirstSave = load(target); edit("Synthetic second GUI save"); break;
         case 4: w.saveDatabase(copy, false); break;
         case 5:
             check(w.dirty && status("Copy saved. The current database still has its previous save state.") && load(target) == afterFirstSave,
                 "copy save leaves dirty state and original source");
+            check(w.currentPath == target && w.recent.path() == target, "copy save never replaces current or recent filename");
             g_signal_emit_by_name(w.saveButton, "clicked"); break;
         case 6:
-            check(status("Database saved and verified.") && !w.dirty && load(target) != afterFirstSave, "header Save follows active source");
+            check(status("Database saved.") && !w.dirty && load(target) != afterFirstSave, "header Save follows active source");
             external = load(target) + QByteArray("external update");
             { QFile file(QString::fromStdString(target)); check(file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(external) == external.size(), "external update fixture"); }
             edit("Synthetic conflict GUI save"); break;
@@ -99,9 +101,10 @@ struct SaveUiProbe {
         }
         case 12:
             check(w.unlocked && !w.sourceKnown && w.dirty && !w.activeRecovery.empty(), "opened recovery requires Save As and discard confirmation");
+            check(w.currentPath.empty() && w.recent.path() == target, "recovery copy is not remembered as the source database");
             w.saveDatabase(recovered, true); break;
         case 13:
-            check(!w.dirty && w.activeRecovery.empty() && status("Database saved and verified."), "recovered copy saves to new file");
+            check(!w.dirty && w.activeRecovery.empty() && status("Database saved."), "recovered copy saves to new file");
             w.inspectRecovery(files.path().toStdString()); break;
         case 14:
             if (!dialog() || !find(GTK_WIDGET(dialog()), GTK_TYPE_BUTTON, tr("Remove record"))) return G_SOURCE_CONTINUE;

@@ -32,6 +32,22 @@ if [[ ${1:-} == --lifetime-ui ]]; then
     bash tools/test-ui.sh --lifetime-asan
     exit
 fi
+if [[ ${1:-} == --default-keys-ui ]]; then
+    cmake --build build/reader-asan --target gnome_default_keys_ui_probe --parallel 4
+    bash tools/test-ui.sh --default-keys-asan
+    exit
+fi
+if [[ ${1:-} == --close-ui ]]; then
+    cmake --build build/reader-asan --target gnome_close_ui_probe --parallel 4
+    bash tools/test-ui.sh --close-asan
+    exit
+fi
+if [[ ${1:-} == --welcome-ui ]]; then
+    cmake --build build/reader-asan --target gnome_welcome_ui_probe gnome_recent_tests --parallel 4
+    ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:strict_string_checks=1 build/reader-asan-output/bin/gnome_recent_tests
+    bash tools/test-ui.sh --welcome-asan
+    exit
+fi
 if [[ ${1:-} == --polish-ui ]]; then
     cmake --build build/reader-asan --target gnome_polish_ui_probe --parallel 4
     bash tools/test-ui.sh --polish-asan

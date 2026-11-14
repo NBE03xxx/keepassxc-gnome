@@ -4,6 +4,8 @@
 
 利用者の指示により、最初に `origin`（非公開Gitea、`git@192.168.1.152:yoshimi/keepass-gnome.git`）へmainを通常pushした。リモートmainとローカルHEADが上記コミットに一致することを照合した。以後の修正・文書はそのpushには含まれない。
 
+**追記（同日・後続作業）。** dev5実機確認までを `a8e44b219156a54836661f6e3d620b26ebdb6af4` としてcommitし、非公開Giteaのmainへpush・一致照合した。その後の[Orca条件比較](orca-echo-modes.md)は日英各28チェック成功、[非公開RC1](release-candidate-rc1.md)は共通検査とVM検証を完了。以下の初期レビュー記録・既知の制限は維持し、現在の引き渡し判定は[残件判定](release-readiness.md)にまとめた。GitHubでの公開は、利用者自身の[起動・操作確認](manual-acceptance.md)後の改めての明示指示を待つ。
+
 ## 判定
 
 **コア再利用、既知データの保持、保存・復旧、自動ロックの実装と既存検証を確認し、初回D-Bus接続失敗の受付を1件修正した。[修正版dev5の作成・VM検証](session-guard-candidate-validation.md)と、[同じ候補の実機更新・今回のOrca確認](dev5-physical-orca.md)を完了した。** 実機の導入版は `0.1.0~dev5-1`。明示した伏せ字での文字非読み上げは確認したが、初回のqzv読み上げ報告は入力条件不明・原因未特定の観測として残す。実データ利用の合格判定、公開用バイナリの固定、GitHubへの公開は行っていない。

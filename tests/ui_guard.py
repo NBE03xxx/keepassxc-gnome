@@ -40,7 +40,12 @@ def state():
     buttons = [node for node in nodes if 'button' in node.get_role_name() and node.get_name().strip() in names]
     if not all(any(node.get_name().strip() == name for node in buttons) for name in names):
         return None
-    if not any(node.get_name().strip() == warning and node.get_state_set().contains(Atspi.StateType.SHOWING) for node in nodes):
+    def visible_warning(node):
+        if node.get_name().strip() != warning or not node.get_state_set().contains(Atspi.StateType.SHOWING):
+            return False
+        bounds = Atspi.Component.get_extents(node, Atspi.CoordType.WINDOW)
+        return bounds.width > 0 and bounds.height > 0
+    if not any(visible_warning(node) for node in nodes):
         return None
     assert all(not node.get_state_set().contains(Atspi.StateType.SENSITIVE) for node in buttons), 'authentication controls must stay disabled after bus failure'
     assert not any(node.get_role_name() == 'password text' for node in nodes), 'no authentication form'

@@ -11,7 +11,7 @@ assert 45 <= timeout <= 10800, 'bounded private GUI monitor timeout'
 end = time.monotonic() + timeout
 while time.monotonic() < end:
     data = log.read_text(errors='replace') if log.exists() else ''
-    if 'FAIL lifetime UI:' in data or 'FAIL polish UI:' in data:
+    if any(marker in data for marker in ('FAIL lifetime UI:', 'FAIL polish UI:', 'FAIL close UI:', 'FAIL welcome UI:')):
         raise AssertionError(data)
     if expected in data:
         print(data[data.index(expected):].splitlines()[0])

@@ -10,13 +10,21 @@
 #include "gnome/Locale.h"
 #include "gnome/FontCache.h"
 #include "gnome/RuntimePaths.h"
+#include "gnome/RecentDatabase.h"
+
+#ifndef KPXC_GNOME_DEVELOPMENT_UI
+#define KPXC_GNOME_DEVELOPMENT_UI 0
+#endif
 #include "gnome/SummaryList.h"
+#include "gnome/NavigationList.h"
+#include "gnome/DatabaseIcons.h"
 #include <glib/gstdio.h>
 #include <QCoreApplication>
 #include <QThread>
 
 #include <clocale>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <libintl.h>
@@ -121,6 +129,9 @@ class Window
 {
     friend struct LifetimeUiProbe;
     friend struct PolishUiProbe;
+    friend struct WelcomeUiProbe;
+    friend struct CloseUiProbe;
+    friend struct DefaultKeysUiProbe;
     friend struct SaveUiProbe; // Separate GUI regression executable; no production runtime hook.
 public:
     explicit Window(AdwApplication* application, std::string pickerExecutable = {})
@@ -129,27 +140,29 @@ public:
         g_weak_ref_init(&editor, nullptr);
         window = GTK_WINDOW(adw_application_window_new(GTK_APPLICATION(application)));
         fontCache = std::make_unique<FontCache>(GTK_WIDGET(window));
-        gtk_window_set_title(window, tr("KeePassXC GNOME — Development"));
+        gtk_window_set_title(window, KPXC_GNOME_DEVELOPMENT_UI ? tr("KeePassXC GNOME — Development") : "KeePassXC GNOME");
         gtk_window_set_default_size(window, 980, 660);
         g_signal_connect(window, "close-request", G_CALLBACK(+[](GtkWindow*, gpointer data) -> gboolean {
             auto& self = *static_cast<Window*>(data);
-            self.confirmDiscard([&self] {
-                self.closing = true;
-                self.worker.cancel();
-                self.conceal();
-                gtk_window_destroy(self.window);
-            });
+            self.requestClose();
             return TRUE;
         }), this);
 
         auto* toolbar = ADW_TOOLBAR_VIEW(adw_toolbar_view_new());
         auto* header = ADW_HEADER_BAR(adw_header_bar_new());
-        windowTitle = ADW_WINDOW_TITLE(adw_window_title_new("KeePassXC GNOME", tr("Your database is locked")));
+        windowTitle = ADW_WINDOW_TITLE(adw_window_title_new("KeePassXC GNOME", tr("No database is open")));
         adw_header_bar_set_title_widget(header, GTK_WIDGET(windowTitle));
         newButton = iconButton("document-new-symbolic", tr("New database"), [this] { newDatabase(); });
         openButton = iconButton("document-open-symbolic", tr("Open database"), [this] { chooseFile(false); });
         cancelButton = button(tr("Cancel"), [this] { lock(); });
         saveButton = button(tr("Save"), [this] { if (sourceKnown) saveDatabase(); else chooseFile(true, true); });
+        dirtyIndicator = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+        gtk_box_append(GTK_BOX(dirtyIndicator), gtk_image_new_from_icon_name("document-edit-symbolic"));
+        gtk_box_append(GTK_BOX(dirtyIndicator), gtk_label_new(tr("Unsaved")));
+        gtk_widget_add_css_class(dirtyIndicator, "accent");
+        gtk_widget_add_css_class(dirtyIndicator, "heading");
+        gtk_widget_set_tooltip_text(dirtyIndicator, tr("Changes have not been saved to the database file."));
+        gtk_accessible_update_property(GTK_ACCESSIBLE(dirtyIndicator), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Changes have not been saved to the database file."), -1);
         auto* menu = gtk_menu_button_new();
         gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(menu), "open-menu-symbolic");
         gtk_widget_set_tooltip_text(menu, tr("Database menu"));
@@ -165,12 +178,25 @@ public:
         saveAsButton = action(tr("Save as a new file"), [this] { chooseFile(true, true); });
         recoveryButton = action(tr("Recovery files"), [this] { chooseRecoveryFolder(); });
         automaticRecoveryButton = action(tr("Recover unsaved changes"), [this] { inspectRecovery(checkpointFolder); });
+        action(tr("Opening KDBX files"), [this] {
+            auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Opening KDBX files"),
+                tr("In Files, right-click a KDBX file and choose Open With to select KeePassXC or KeePassXC GNOME. You can change the default application in the file's Properties. This app does not overwrite an explicitly selected default application.")));
+            adw_alert_dialog_add_responses(dialog, "close", tr("Close"), nullptr);
+            adw_alert_dialog_set_default_response(dialog, "close");
+            adw_alert_dialog_set_close_response(dialog, "close");
+            adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
+        });
         action(tr("Keyboard shortcuts"), [this] {
             auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Keyboard shortcuts"),
                 tr("Ctrl+O  Open database\nCtrl+S  Save\nCtrl+Shift+S  Save as a new file\nCtrl+L  Lock\nCtrl+F  Search entries\nCtrl+N  New entry\nCtrl+Shift+N  New database")));
             adw_alert_dialog_add_responses(dialog, "close", tr("Close"), nullptr);
+            adw_alert_dialog_set_default_response(dialog, "close");
             adw_alert_dialog_set_close_response(dialog, "close");
             adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
+        });
+        forgetButton = action(tr("Forget recent database"), [this] {
+            if (!recent.forget()) message(tr("Could not update recent database preferences. Check the application state folder permissions."));
+            sensitivity();
         });
         gtk_popover_set_child(popover, actions);
         gtk_menu_button_set_popover(GTK_MENU_BUTTON(menu), GTK_WIDGET(popover));
@@ -180,26 +206,46 @@ public:
         adw_header_bar_pack_end(header, lockButton);
         adw_header_bar_pack_end(header, cancelButton);
         adw_header_bar_pack_end(header, saveButton);
+        adw_header_bar_pack_end(header, dirtyIndicator);
         adw_header_bar_pack_end(header, menu);
         adw_toolbar_view_add_top_bar(toolbar, GTK_WIDGET(header));
         auto* banner = adw_banner_new(tr("Development build. Use synthetic test databases only."));
         adw_banner_set_revealed(ADW_BANNER(banner), TRUE);
-        adw_toolbar_view_add_top_bar(toolbar, banner);
+        if (KPXC_GNOME_DEVELOPMENT_UI) adw_toolbar_view_add_top_bar(toolbar, banner);
+        else { g_object_ref_sink(banner); g_object_unref(banner); }
         guardBanner = ADW_BANNER(adw_banner_new(tr("Some system lock notifications are unavailable. The five-minute inactivity lock remains enabled.")));
         adw_toolbar_view_add_top_bar(toolbar, GTK_WIDGET(guardBanner));
 
         auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
         stack = GTK_STACK(gtk_stack_new());
         gtk_widget_set_vexpand(GTK_WIDGET(stack), TRUE);
-        auto* welcome = adw_status_page_new();
-        adw_status_page_set_icon_name(ADW_STATUS_PAGE(welcome), "dialog-password-symbolic");
-        adw_status_page_set_title(ADW_STATUS_PAGE(welcome), tr("Your database is locked"));
-        adw_status_page_set_description(ADW_STATUS_PAGE(welcome), tr("Create or open a test database to get started."));
+        welcome = adw_status_page_new();
+        auto* welcomeActions = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+        gtk_widget_set_halign(welcomeActions, GTK_ALIGN_CENTER);
+        recentLabel = GTK_LABEL(gtk_label_new(nullptr));
+        gtk_label_set_ellipsize(recentLabel, PANGO_ELLIPSIZE_MIDDLE);
+        gtk_label_set_max_width_chars(recentLabel, 36);
+        gtk_accessible_update_property(GTK_ACCESSIBLE(recentLabel), GTK_ACCESSIBLE_PROPERTY_DESCRIPTION, tr("Recent database"), -1);
+        gtk_box_append(GTK_BOX(welcomeActions), GTK_WIDGET(recentLabel));
+        recentButton = button(tr("Unlock database"), [this] {
+            if (!recent.path().empty()) credentials(false, recent.path());
+        });
+        gtk_widget_add_css_class(recentButton, "suggested-action");
+        gtk_widget_add_css_class(recentButton, "pill");
+        gtk_box_append(GTK_BOX(welcomeActions), recentButton);
+        welcomeNew = button(tr("New database"), [this] { newDatabase(); });
+        welcomeOpen = button(tr("Open database"), [this] { chooseFile(false); });
+        for (auto* item : {welcomeNew, welcomeOpen}) {
+            gtk_widget_add_css_class(item, "pill");
+            gtk_widget_set_size_request(item, 240, -1);
+            gtk_box_append(GTK_BOX(welcomeActions), item);
+        }
+        adw_status_page_set_child(ADW_STATUS_PAGE(welcome), welcomeActions);
         gtk_stack_add_named(stack, welcome, "locked");
 
         split = ADW_OVERLAY_SPLIT_VIEW(adw_overlay_split_view_new());
         adw_overlay_split_view_set_min_sidebar_width(split, 220);
-        adw_overlay_split_view_set_max_sidebar_width(split, 320);
+        adw_overlay_split_view_set_max_sidebar_width(split, 340);
         adw_overlay_split_view_set_sidebar_width_fraction(split, .27);
         sidebarButton = gtk_toggle_button_new();
         gtk_button_set_icon_name(GTK_BUTTON(sidebarButton), "sidebar-show-symbolic");
@@ -210,40 +256,50 @@ public:
         g_object_bind_property(sidebarButton, "active", split, "show-sidebar", GBindingFlags(G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE));
         adw_header_bar_pack_start(header, sidebarButton);
         auto* breakpoint = adw_breakpoint_new(adw_breakpoint_condition_parse("max-width: 780sp"));
-        adw_breakpoint_add_setters(breakpoint, G_OBJECT(split), "collapsed", TRUE, G_OBJECT(split), "show-sidebar", FALSE, G_OBJECT(sidebarButton), "visible", TRUE, nullptr);
+        adw_breakpoint_add_setters(breakpoint, G_OBJECT(split), "collapsed", TRUE, G_OBJECT(split), "show-sidebar", FALSE, nullptr);
         adw_application_window_add_breakpoint(ADW_APPLICATION_WINDOW(window), breakpoint);
+        g_signal_connect(split, "notify::collapsed", G_CALLBACK(+[](GObject*, GParamSpec*, gpointer data) {
+            auto& self = *static_cast<Window*>(data);
+            gtk_widget_set_visible(self.sidebarButton, self.unlocked && adw_overlay_split_view_get_collapsed(self.split));
+        }), this);
         gtk_widget_set_size_request(GTK_WIDGET(window), 560, 480);
         auto* sidebar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
         gtk_widget_set_size_request(sidebar, 190, -1);
         auto* groupActions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
         groupAdd = iconButton("list-add-symbolic", tr("New group"), [this] { groupName(false); });
         gtk_widget_set_tooltip_text(groupAdd, tr("New group"));
-        groupRename = iconButton("document-edit-symbolic", tr("Rename"), [this] { groupName(true); });
+        groupRename = iconButton("document-edit-symbolic", tr("Edit group"), [this] { groupName(true); });
         groupDelete = iconButton("user-trash-symbolic", tr("Delete"), [this] { deleteGroup(); });
         for (auto* item : {groupAdd, groupRename, groupDelete}) {
             gtk_box_append(GTK_BOX(groupActions), item);
         }
         gtk_box_append(GTK_BOX(sidebar), groupActions);
-        groups = std::make_unique<SummaryList>(false, [this](GtkWidget* row, guint i) {
+        groups = std::make_unique<NavigationList>([this](GtkWidget* row, NavigationList::Item node) {
+            const auto i = node.index;
             if (i >= groupRows.size()) return;
-            gtk_label_set_text(GTK_LABEL(row), groupRows[i].name.c_str());
-            gtk_widget_set_margin_start(row, 8 + std::min(groupRows[i].depth, 12U) * 12);
+            SummaryList::setTitle(row, groupRows[i].name.c_str());
+            DatabaseIcons::set(GTK_IMAGE(g_object_get_data(G_OBJECT(row), "database-icon")), groupRows[i].icon, groupRows[i].customIcon);
         }, [this] {
             if (refreshing || !unlocked) return;
-            const auto i = groups->selected();
-            if (i < groupRows.size()) { selectedGroup = groupRows[i].id; refresh(); }
-        }, [this](guint i) {
-            groups->select(i);
-            if (adw_overlay_split_view_get_collapsed(split)) adw_overlay_split_view_set_show_sidebar(split, FALSE);
+            const auto epoch = generation; checkIdle();
+            if (!unlocked || epoch != generation) return;
+            idle.activity(IdleLock::bootTime());
+            const auto i = groups->selected().index;
+            if (i < groupRows.size() && selectedGroup != groupRows[i].id) { selectedGroup = groupRows[i].id; clearPreview(); refresh(); }
+        }, [this] {
+            if (unlocked && !busy) groups->toggleSelected();
         });
         gtk_box_append(GTK_BOX(sidebar), scrolled(groups->widget()));
         adw_overlay_split_view_set_sidebar(split, sidebar);
 
         auto* right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+        auto* listHeader = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+        gtk_box_append(GTK_BOX(right), listHeader);
         search = GTK_EDITABLE(gtk_search_entry_new());
         g_object_set(search, "placeholder-text", tr("Search entries"), nullptr);
         gtk_widget_set_tooltip_text(GTK_WIDGET(search), tr("Search entries"));
-        gtk_box_append(GTK_BOX(right), GTK_WIDGET(search));
+        gtk_widget_set_hexpand(GTK_WIDGET(search), TRUE);
+        gtk_box_append(GTK_BOX(listHeader), GTK_WIDGET(search));
         g_signal_connect(search, "search-changed", G_CALLBACK(+[](GtkSearchEntry*, gpointer data) {
             static_cast<Window*>(data)->refresh();
         }), this);
@@ -256,13 +312,70 @@ public:
         for (auto* item : {entryAdd, entryEdit, entryDelete, copyUser, copyPass}) {
             gtk_box_append(GTK_BOX(entryActions), item);
         }
-        gtk_box_append(GTK_BOX(right), entryActions);
+        gtk_box_append(GTK_BOX(listHeader), entryActions);
         entries = std::make_unique<SummaryList>(true, [this](GtkWidget* row, guint i) {
             if (i >= entryRows.size()) return;
-            adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), entryRows[i].title.c_str());
-            adw_action_row_set_subtitle(ADW_ACTION_ROW(row), entryRows[i].username.c_str());
-        }, [this] { sensitivity(); }, [this](guint i) { entries->select(i); editSelected(); });
-        gtk_box_append(GTK_BOX(right), scrolled(entries->widget()));
+            SummaryList::setTitle(row, entryRows[i].title.c_str());
+            SummaryList::setSubtitle(row, entryRows[i].username.c_str());
+            DatabaseIcons::set(GTK_IMAGE(g_object_get_data(G_OBJECT(row), "database-icon")), entryRows[i].icon, entryRows[i].customIcon);
+        }, [this] {
+            sensitivity();
+            if (!refreshing && unlocked) {
+                const auto epoch = generation; checkIdle();
+                if (!unlocked || epoch != generation) return;
+                idle.activity(IdleLock::bootTime()); previewSelected();
+            }
+        }, [this](guint i) { entries->select(i); editSelected(); });
+        gtk_accessible_update_property(GTK_ACCESSIBLE(entries->widget()), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Entries"), -1);
+        auto* detailSplit = GTK_PANED(gtk_paned_new(GTK_ORIENTATION_VERTICAL));
+        auto* entryScroll = scrolled(entries->widget()); gtk_widget_set_focusable(entryScroll, FALSE);
+        gtk_paned_set_start_child(detailSplit, entryScroll);
+        gtk_paned_set_resize_start_child(detailSplit, TRUE); gtk_paned_set_shrink_start_child(detailSplit, FALSE);
+        gtk_paned_set_resize_end_child(detailSplit, TRUE); gtk_paned_set_shrink_end_child(detailSplit, FALSE);
+        gtk_paned_set_position(detailSplit, 180); gtk_paned_set_wide_handle(detailSplit, TRUE);
+        gtk_widget_set_size_request(entries->widget(), -1, 100);
+        preview = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+        auto* previewActions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+        // Keep actions beside the preview rather than duplicating account data.
+        for (auto* item : {entryEdit, entryDelete, copyUser, copyPass}) {
+            g_object_ref(item); gtk_box_remove(GTK_BOX(entryActions), item);
+            gtk_box_append(GTK_BOX(previewActions), item); g_object_unref(item);
+        }
+        gtk_box_append(GTK_BOX(preview), previewActions);
+        auto* previewFields = gtk_grid_new();
+        gtk_grid_set_column_homogeneous(GTK_GRID(previewFields), TRUE);
+        gtk_grid_set_column_spacing(GTK_GRID(previewFields), 18); gtk_grid_set_row_spacing(GTK_GRID(previewFields), 8);
+        auto previewField = [previewFields](const char* title, int column, int row, int width = 1) {
+            auto* cell = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3); gtk_widget_set_hexpand(cell, TRUE);
+            auto* label = gtk_label_new(""); gtk_label_set_xalign(GTK_LABEL(label), 0);
+            gtk_label_set_wrap(GTK_LABEL(label), TRUE); gtk_label_set_wrap_mode(GTK_LABEL(label), PANGO_WRAP_WORD_CHAR);
+            gtk_label_set_max_width_chars(GTK_LABEL(label), 30);
+            auto* caption = gtk_label_new(title); gtk_label_set_xalign(GTK_LABEL(caption), 0); gtk_widget_add_css_class(caption, "dim-label");
+            gtk_box_append(GTK_BOX(cell), caption); gtk_box_append(GTK_BOX(cell), label);
+            gtk_grid_attach(GTK_GRID(previewFields), cell, column, row, width, 1);
+            gtk_accessible_update_property(GTK_ACCESSIBLE(label), GTK_ACCESSIBLE_PROPERTY_LABEL, title, -1);
+            return GTK_LABEL(label);
+        };
+        previewTitle = previewField(tr("Title"), 0, 0); previewUsername = previewField(tr("Username"), 1, 0);
+        auto* passwordCell = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+        auto* passwordCaption = gtk_label_new(tr("Password")); gtk_label_set_xalign(GTK_LABEL(passwordCaption), 0); gtk_widget_add_css_class(passwordCaption, "dim-label");
+        gtk_box_append(GTK_BOX(passwordCell), passwordCaption);
+        previewPassword = GTK_EDITABLE(gtk_password_entry_new());
+        gtk_password_entry_set_show_peek_icon(GTK_PASSWORD_ENTRY(previewPassword), TRUE);
+        gtk_editable_set_editable(previewPassword, FALSE); secureEditable(GTK_WIDGET(previewPassword), true);
+        gtk_accessible_update_property(GTK_ACCESSIBLE(previewPassword), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Password preview"), -1);
+        gtk_box_append(GTK_BOX(passwordCell), GTK_WIDGET(previewPassword));
+        gtk_grid_attach(GTK_GRID(previewFields), passwordCell, 0, 1, 1, 1);
+        previewUrl = previewField(tr("Website"), 1, 1); previewNotes = previewField(tr("Notes"), 0, 2, 2);
+        gtk_widget_set_margin_end(previewFields, 12);
+        gtk_box_append(GTK_BOX(preview), previewFields);
+        auto* previewScroll = scrolled(preview); gtk_widget_set_size_request(previewScroll, -1, 160);
+        gtk_paned_set_end_child(detailSplit, previewScroll);
+        gtk_box_append(GTK_BOX(right), GTK_WIDGET(detailSplit));
+        gtk_widget_set_vexpand(GTK_WIDGET(detailSplit), TRUE);
+        previewHint = gtk_label_new(tr("Select an entry to preview it. Double-click or press Enter to edit."));
+        gtk_label_set_wrap(GTK_LABEL(previewHint), TRUE); gtk_box_append(GTK_BOX(right), previewHint);
+        gtk_widget_set_visible(preview, FALSE);
         emptyLabel = gtk_label_new(tr("No entries. Create an entry or change your search."));
         gtk_label_set_wrap(GTK_LABEL(emptyLabel), TRUE);
         gtk_box_append(GTK_BOX(right), emptyLabel);
@@ -281,7 +394,7 @@ public:
         }
         adw_toolbar_view_set_content(toolbar, content);
         adw_application_window_set_content(ADW_APPLICATION_WINDOW(window), GTK_WIDGET(toolbar));
-        appearance = std::make_unique<Appearance>(adw_application_get_style_manager(application));
+        appearance = std::make_unique<Appearance>(adw_application_get_style_manager(application), GTK_WIDGET(window));
         clipboard = GDK_CLIPBOARD(g_object_ref(gtk_widget_get_clipboard(GTK_WIDGET(window))));
         auto* primary = gdk_display_get_primary_clipboard(gtk_widget_get_display(GTK_WIDGET(window)));
         if (primary) primaryClipboard = GDK_CLIPBOARD(g_object_ref(primary));
@@ -338,6 +451,7 @@ public:
         closing = true;
         worker.shutdown();
         if (idleTimer) g_source_remove(idleTimer);
+        cancelOpenRequest();
         worker.cancel();
         alive.reset();
         picker.cancel();
@@ -360,6 +474,32 @@ public:
     }
 
     void present() { gtk_window_present(window); }
+
+    // GApplication::open receives local file arguments from the desktop entry.
+    // Authentication is deferred until the initial desktop protection queries
+    // settle; the database is not read before the ordinary password response.
+    void openFiles(GFile** files, int count) {
+        if (count != 1) { message(tr("Open one database at a time.")); return; }
+        auto* path = g_file_get_path(files[0]);
+        if (!path) { message(tr("Only local database files can be opened. Choose a local KDBX file.")); return; }
+        cancelOpenRequest(); requestedPath = path; g_free(path); openAttempts = 0;
+        openRequestTimer = g_timeout_add(100, +[](gpointer data) -> gboolean {
+            auto& self = *static_cast<Window*>(data);
+            if (++self.openAttempts < 100 && (self.busy || (self.guard && !self.guard->settled()))) return G_SOURCE_CONTINUE;
+            self.openRequestTimer = 0;
+            const auto path = std::exchange(self.requestedPath, {});
+            self.checkIdle();
+            if (self.closing) return G_SOURCE_REMOVE;
+            if (self.busy || (self.guard && self.guard->blocked())) {
+                self.message(tr("Wait for desktop lock and sleep protection to be ready before opening a database."));
+            } else if (adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(self.window))) {
+                self.message(tr("Close the current dialog before opening another database."));
+            } else {
+                self.confirmDiscard([&self, path] { self.credentials(false, path); });
+            }
+            return G_SOURCE_REMOVE;
+        }, this);
+    }
 
 private:
     GtkWidget* button(const char* title, std::function<void()> clicked)
@@ -400,10 +540,10 @@ private:
 
     void sensitivity()
     {
-        const bool ready = unlocked && !busy;
+        const bool ready = unlocked && !busy && !closeSavePending;
         const bool selected = ready && entries->selected() < entryRows.size();
-        for (auto* item : {newButton, openButton}) {
-            gtk_widget_set_sensitive(item, !busy && (!guard || !guard->blocked()));
+        for (auto* item : {newButton, openButton, welcomeNew, welcomeOpen, recentButton}) {
+            gtk_widget_set_sensitive(item, !busy && !closeSavePending && (!guard || !guard->blocked()));
         }
         for (auto* item : {saveButton, copySaveButton, saveAsButton, entryAdd, groupAdd, groupRename}) {
             gtk_widget_set_sensitive(item, ready);
@@ -414,15 +554,55 @@ private:
         }
         gtk_widget_set_sensitive(lockButton, unlocked || loading);
         gtk_widget_set_visible(cancelButton, loading);
-        gtk_widget_set_sensitive(recoveryButton, !busy);
-        gtk_widget_set_sensitive(automaticRecoveryButton, !busy);
-        gtk_widget_set_sensitive(sidebarButton, unlocked && !busy);
+        gtk_widget_set_sensitive(recoveryButton, !busy && !closeSavePending);
+        gtk_widget_set_sensitive(automaticRecoveryButton, !busy && !closeSavePending);
+        gtk_widget_set_visible(sidebarButton, unlocked && adw_overlay_split_view_get_collapsed(split));
+        gtk_widget_set_sensitive(sidebarButton, ready);
+        gtk_widget_set_sensitive(GTK_WIDGET(search), !closeSavePending);
+        gtk_widget_set_sensitive(forgetButton, !busy && !closeSavePending && !recent.path().empty());
         updateTitle();
     }
 
     void updateTitle() {
         if (closing) return;
-        adw_window_title_set_subtitle(windowTitle, busy ? tr("Working…") : !unlocked ? tr("Your database is locked") : dirty ? tr("Unsaved changes") : tr("Saved"));
+        const bool hasRecent = !recent.path().empty();
+        const auto* idleTitle = hasRecent ? tr("Unlock your database") : hasOpenedDatabase ? tr("Your database is locked") : tr("Welcome to KeePassXC GNOME");
+        adw_status_page_set_title(ADW_STATUS_PAGE(welcome), idleTitle);
+        adw_status_page_set_description(ADW_STATUS_PAGE(welcome), hasRecent ? tr("Your passwords are ready when you are.") :
+            hasOpenedDatabase ? tr("Open a database to continue.") : tr("Create a database or open one to get started."));
+        adw_status_page_set_icon_name(ADW_STATUS_PAGE(welcome), hasRecent || hasOpenedDatabase ? "system-lock-screen-symbolic" : "dialog-password-symbolic");
+        gtk_widget_set_visible(GTK_WIDGET(recentLabel), hasRecent);
+        gtk_widget_set_visible(recentButton, hasRecent);
+        if (hasRecent) gtk_widget_remove_css_class(welcomeNew, "suggested-action");
+        else gtk_widget_add_css_class(welcomeNew, "suggested-action");
+        const auto recentName = displayFilename(recent.path());
+        gtk_label_set_text(recentLabel, recentName.c_str());
+        const auto filename = displayFilename(currentPath);
+        std::string title = unlocked ? (filename.empty() ? tr("Unsaved database") : filename) : "KeePassXC GNOME";
+        if (unlocked && dirty) title = "• " + title;
+        adw_window_title_set_title(windowTitle, title.c_str());
+        const auto applicationTitle = KPXC_GNOME_DEVELOPMENT_UI ? tr("KeePassXC GNOME — Development") : "KeePassXC GNOME";
+        const auto nativeTitle = unlocked ? title + " — " + applicationTitle : std::string(applicationTitle);
+        gtk_window_set_title(window, nativeTitle.c_str());
+        gtk_widget_set_visible(dirtyIndicator, unlocked && dirty);
+        if (unlocked && dirty) gtk_widget_add_css_class(saveButton, "suggested-action");
+        else gtk_widget_remove_css_class(saveButton, "suggested-action");
+        adw_window_title_set_subtitle(windowTitle, busy ? tr("Working…") : !unlocked ?
+            (hasRecent || hasOpenedDatabase ? tr("Locked") : tr("Welcome")) :
+            dirty ? tr("Unsaved changes") : tr("Saved"));
+    }
+    static std::string displayFilename(const std::string& path) {
+        if (path.empty()) return {};
+        auto* basename = g_filename_display_basename(path.c_str());
+        std::string result(basename); g_free(basename);
+        // Keep untrusted file names on one visual line. GtkLabel uses literal
+        // text, never markup. The original filename is retained for file IO.
+        for (auto& c : result) if (static_cast<unsigned char>(c) < 32 || c == 127) c = ' ';
+        return result;
+    }
+    void rememberDatabase(const std::string& path) {
+        recentWarning = !path.empty() && !recent.remember(path);
+        if (recentWarning) message(tr("The database is open, but its location could not be remembered."));
     }
     void message(const char* text) { gtk_label_set_text(status, text); updateTitle(); }
 
@@ -430,13 +610,13 @@ private:
     {
         switch (failure) {
         case ReadFailure::ResourceLimit:
-            message(tr("This database exceeds the development build's read limits. The file was not changed.")); break;
+            message(tr("This database exceeds the supported read limits. The file was not changed.")); break;
         case ReadFailure::UnsupportedKdf:
-            message(tr("This database uses KDF settings this build cannot preserve or compute correctly. The file was not changed.")); break;
+            message(tr("This database uses KDF settings this application cannot preserve or compute correctly. The file was not changed.")); break;
         case ReadFailure::IoError:
             message(tr("Could not read a local regular database file.")); break;
         case ReadFailure::UnsupportedData:
-            message(tr("This database contains data this build cannot safely preserve. The file was not changed.")); break;
+            message(tr("This database contains data this application cannot safely preserve. The file was not changed.")); break;
         case ReadFailure::Timeout:
             message(tr("The operation exceeded its time limit. The database is locked.")); break;
         case ReadFailure::Cancelled:
@@ -506,6 +686,49 @@ private:
                 tr("Discard"), std::move(action));
     }
 
+    void closeNow() {
+        closing = true;
+        worker.cancel(); conceal(); gtk_window_destroy(window);
+    }
+
+    void requestClose() {
+        if (closing || closeSavePending) return;
+        checkIdle();
+        // A read may be cancelled immediately. A mutation/save already in
+        // progress must finish before deciding which confirmed edits to save.
+        if (busy && !loading) { message(tr("Wait for the current operation to finish before closing.")); return; }
+        if (unlocked && (picker.active() || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(window)))) {
+            message(tr("Finish or cancel the current dialog before closing the application.")); return;
+        }
+        if (!dirty) { closeNow(); return; }
+        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Save changes before closing?"),
+            tr("Your changes have not been saved to the database file. Save them before closing, or discard them. Confirmed edits remain in encrypted recovery records until you remove those records.")));
+        adw_alert_dialog_add_responses(dialog, "cancel", tr("Cancel"), "discard", tr("Discard"),
+            "save", sourceKnown ? tr("Save (overwrite)") : tr("Save as…"), nullptr);
+        adw_alert_dialog_set_response_appearance(dialog, "discard", ADW_RESPONSE_DESTRUCTIVE);
+        adw_alert_dialog_set_response_appearance(dialog, "save", ADW_RESPONSE_SUGGESTED);
+        adw_alert_dialog_set_default_response(dialog, "save");
+        adw_alert_dialog_set_close_response(dialog, "cancel");
+        const auto epoch = generation;
+        auto* callback = new std::function<void(const char*)>([this, epoch](const char* response) {
+            if (closing || epoch != generation || g_str_equal(response, "cancel")) return;
+            checkIdle();
+            if (closing || epoch != generation || !unlocked || (guard && guard->blocked())) return;
+            if (busy) { message(tr("Wait for the current operation to finish before closing.")); return; }
+            idle.activity(IdleLock::bootTime());
+            if (g_str_equal(response, "discard")) { closeNow(); return; }
+            if (!g_str_equal(response, "save")) return;
+            closeSavePending = true; sensitivity();
+            auto saved = [this] { closeSavePending = false; closeNow(); };
+            if (sourceKnown) saveDatabase({}, false, std::move(saved));
+            else chooseFileImpl(true, true, std::move(saved));
+        });
+        g_signal_connect_data(dialog, "response", G_CALLBACK(+[](AdwAlertDialog*, const char* response, gpointer data) {
+            (*static_cast<std::function<void(const char*)>*>(data))(response);
+        }), callback, +[](gpointer data, GClosure*) { delete static_cast<std::function<void(const char*)>*>(data); }, G_CONNECT_DEFAULT);
+        adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
+    }
+
     void conceal()
     {
         ++generation;
@@ -514,7 +737,10 @@ private:
         gtk_stack_set_visible_child_name(stack, "locked");
         loading = false;
         saving = false;
+        closeSavePending = false;
         sourceKnown = false;
+        currentPath.clear();
+        recentWarning = false;
         activeRecovery.clear();
         picker.cancel();
         auto* dialogs = adw_application_window_get_dialogs(ADW_APPLICATION_WINDOW(window));
@@ -526,6 +752,7 @@ private:
         }
         clearClipboard();
         if (primaryClipboard && gdk_clipboard_is_local(primaryClipboard)) gdk_clipboard_set_content(primaryClipboard, nullptr);
+        clearPreview();
         groups->clear();
         entries->clear();
         Sensitive::wipe(groupRows);
@@ -539,8 +766,14 @@ private:
         sensitivity();
     }
 
+    void cancelOpenRequest() {
+        if (openRequestTimer) g_source_remove(openRequestTimer);
+        openRequestTimer = 0; requestedPath.clear();
+    }
+
     void lock()
     {
+        cancelOpenRequest();
         const bool wasSaving = saving;
         worker.cancel();
         conceal();
@@ -571,11 +804,13 @@ private:
     {
         if (guard && guard->blocked()) { message(tr("Wait for desktop lock and sleep protection to be ready before opening a database.")); return; }
         auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(create ? tr("New database") : tr("Unlock database"), nullptr));
+        if (!create) adw_alert_dialog_set_body(dialog, displayFilename(path).c_str());
         auto* fields = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
         GtkEditable* name = nullptr;
         if (create) {
             name = GTK_EDITABLE(gtk_entry_new());
             gtk_entry_set_placeholder_text(GTK_ENTRY(name), tr("Database name"));
+            gtk_entry_set_activates_default(GTK_ENTRY(name), TRUE);
             gtk_accessible_update_property(GTK_ACCESSIBLE(name), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Database name"), -1);
             gtk_editable_set_text(name, tr("Passwords"));
             gtk_box_append(GTK_BOX(fields), GTK_WIDGET(name));
@@ -583,20 +818,34 @@ private:
         auto* password = GTK_EDITABLE(gtk_password_entry_new());
         secureEditable(GTK_WIDGET(password), true);
         gtk_accessible_update_property(GTK_ACCESSIBLE(password), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Master password"), -1);
-        g_object_set(password, "placeholder-text", tr("Master password"), "show-peek-icon", TRUE, nullptr);
+        g_object_set(password, "placeholder-text", tr("Master password"), "show-peek-icon", TRUE, "activates-default", TRUE, nullptr);
         gtk_box_append(GTK_BOX(fields), GTK_WIDGET(password));
         GtkEditable* repeated = nullptr;
         if (create) {
             repeated = GTK_EDITABLE(gtk_password_entry_new());
             secureEditable(GTK_WIDGET(repeated), true);
             gtk_accessible_update_property(GTK_ACCESSIBLE(repeated), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Repeat master password"), -1);
-            g_object_set(repeated, "placeholder-text", tr("Repeat master password"), nullptr);
+            g_object_set(repeated, "placeholder-text", tr("Repeat master password"), "activates-default", TRUE, nullptr);
             gtk_box_append(GTK_BOX(fields), GTK_WIDGET(repeated));
         }
         adw_alert_dialog_set_extra_child(dialog, fields);
         adw_alert_dialog_add_responses(dialog, "cancel", tr("Cancel"), "accept", create ? tr("Create") : tr("Unlock"), nullptr);
         adw_alert_dialog_set_response_appearance(dialog, "accept", ADW_RESPONSE_SUGGESTED);
+        adw_alert_dialog_set_default_response(dialog, "accept");
         adw_alert_dialog_set_close_response(dialog, "cancel");
+        auto validCredentials = [dialog, name, password, repeated] {
+            const char* secret = gtk_editable_get_text(password);
+            const bool valid = *secret && (!name || *gtk_editable_get_text(name)) &&
+                (!repeated || !std::strcmp(secret, gtk_editable_get_text(repeated)));
+            adw_alert_dialog_set_response_enabled(dialog, "accept", valid);
+        };
+        for (auto* field : {name, password, repeated}) if (field) {
+            auto* update = new std::function<void()>(validCredentials);
+            g_signal_connect_data(field, "changed", G_CALLBACK(+[](GtkEditable*, gpointer p) {
+                (*static_cast<std::function<void()>*>(p))();
+            }), update, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_DEFAULT);
+        }
+        validCredentials();
         const auto credentialsEpoch = generation;
         auto* callback = new std::function<void(const char*)>([this, credentialsEpoch, create, path = std::move(path), name, password, repeated](const char* response) {
             if (credentialsEpoch != generation || !g_str_equal(response, "accept")) {
@@ -638,11 +887,14 @@ private:
                     readFailure(failure);
                     return;
                 }
+                hasOpenedDatabase = true;
                 unlocked = true;
                 idle.activity(IdleLock::bootTime());
                 dirty = create || !recovery.empty();
                 activeRecovery = recovery;
                 sourceKnown = source;
+                currentPath = source ? path : std::string{};
+                if (source) rememberDatabase(path);
                 if (!path.empty()) recoveryFolder = std::filesystem::path(path).parent_path().string();
                 gtk_stack_set_visible_child_name(stack, "unlocked");
                 refresh();
@@ -654,10 +906,11 @@ private:
         adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
     }
 
-    void newDatabase() { confirmDiscard([this] { credentials(true, {}); }); }
+    void newDatabase() { cancelOpenRequest(); confirmDiscard([this] { credentials(true, {}); }); }
 
     void chooseFile(bool save, bool associate = false)
     {
+        cancelOpenRequest();
         if (!save && dirty) {
             confirmDiscard([this] { chooseFileImpl(false); });
             return;
@@ -665,23 +918,30 @@ private:
         chooseFileImpl(save, associate);
     }
 
-    void chooseFileImpl(bool save, bool associate = false)
+    void chooseFileImpl(bool save, bool associate = false, std::function<void()> saved = {})
     {
         if (picker.active()) return;
         const auto epoch = generation, serial = ++pickerSerial;
         const std::weak_ptr<int> lifetime = alive;
         const auto title = save ? (associate ? tr("Save as a new file") : tr("Save a database copy")) : tr("Open database");
         if (!picker.choose(window, {save ? NativePicker::Mode::Save : NativePicker::Mode::Open, title, recoveryFolder, save ? "Passwords.kdbx" : ""},
-            [this, save, associate, epoch, serial, lifetime](NativePicker::Status result, std::string path) {
+            [this, save, associate, epoch, serial, lifetime, saved = std::move(saved)](NativePicker::Status result, std::string path) {
                 if (lifetime.expired() || closing || epoch != generation || serial != pickerSerial) return;
-                if (result == NativePicker::Status::Failed) message(tr("Could not open the file chooser. Try again."));
-                if (result != NativePicker::Status::Selected) return;
-                if (save) saveDatabase(std::move(path), associate);
+                if (result != NativePicker::Status::Selected) {
+                    if (saved) { closeSavePending = false; sensitivity(); }
+                    if (result == NativePicker::Status::Failed) message(tr("Could not open the file chooser. Try again."));
+                    else if (saved) message(tr("Save cancelled. Your changes remain open."));
+                    return;
+                }
+                if (save) saveDatabase(std::move(path), associate, std::move(saved));
                 else credentials(false, std::move(path));
-            })) message(tr("Could not open the file chooser. Try again."));
+            })) {
+                closeSavePending = false; sensitivity();
+                message(tr("Could not open the file chooser. Try again."));
+            }
     }
 
-    void saveDatabase(std::string path = {}, bool associate = false)
+    void saveDatabase(std::string path = {}, bool associate = false, std::function<void()> saved = {})
     {
         saving = true;
         if (!path.empty()) recoveryFolder = std::filesystem::path(path).parent_path().string();
@@ -690,13 +950,18 @@ private:
             else if (associate) session.saveAs(path);
             else session.saveCopy(path);
             return session.lastSaveResult();
-        }, [this, associate, normal = path.empty()](SaveResult result) {
+        }, [this, associate, normal = path.empty(), saved = std::move(saved)](SaveResult result) {
             saving = false;
             if (result.committed()) {
                 if (associate || normal) { dirty = false; sourceKnown = true; activeRecovery.clear(); }
-                message(associate || normal ? tr("Database saved and verified.") : tr("Copy saved. The current database still has its previous save state."));
+                if (associate) currentPath = result.target;
+                message(associate || normal ? tr("Database saved.") : tr("Copy saved. The current database still has its previous save state."));
+                if (associate) rememberDatabase(currentPath);
+                sensitivity();
+                if (saved && (associate || normal) && !dirty) saved();
                 return;
             }
+            closeSavePending = false; sensitivity();
             const char* reason;
             switch (result.status) {
             case SaveStatus::Exists: reason = tr("A file already exists at that location. Choose a new filename."); break;
@@ -805,25 +1070,32 @@ private:
         const auto serial = ++refreshSerial;
         const auto group = selectedGroup;
         auto query = Sensitive::owned(new std::string(gtk_editable_get_text(search)));
-        submit([group, query](RemoteSession& session) { return Snapshot{session.groups(), session.search(*query, group)}; },
+        submit([group, query](RemoteSession& session) {
+            auto allGroups = session.groups();
+            const auto base = group.empty() && !allGroups.empty() ? allGroups.front().id : group;
+            return Snapshot{std::move(allGroups), session.search(*query, base)};
+        },
                [this, serial](Snapshot& snapshot) {
             if (serial != refreshSerial) return;
             const auto previousEntry = selectedEntry();
+            std::set<std::string> expandedIds;
+            for (auto index : groups->expanded()) if (index < groupRows.size()) expandedIds.insert(groupRows[index].id);
             refreshing = true;
+            clearPreview();
             groups->clear();
             entries->clear();
             Sensitive::wipe(groupRows); Sensitive::wipe(entryRows);
             groupRows = std::move(snapshot.groups);
             entryRows = std::move(snapshot.entries);
             guint selected = 0, entrySelection = GTK_INVALID_LIST_POSITION;
-            std::vector<std::string> ids; ids.reserve(groupRows.size());
+            std::set<guint> expandedIndices;
             for (guint i = 0; i < groupRows.size(); ++i) {
-                ids.push_back(groupRows[i].id);
+                if (expandedIds.contains(groupRows[i].id)) expandedIndices.insert(i);
                 if (groupRows[i].id == selectedGroup) selected = i;
             }
-            groups->append(ids);
-            if (!groupRows.empty()) { selectedGroup = groupRows[selected].id; groups->select(selected); }
-            ids.clear(); ids.reserve(entryRows.size());
+            groups->reset(groupRows, {}, false, expandedIndices);
+            if (!groupRows.empty()) { selectedGroup = groupRows[selected].id; groups->select({true, selected}); }
+            std::vector<std::string> ids; ids.reserve(entryRows.size());
             for (guint i = 0; i < entryRows.size(); ++i) {
                 ids.push_back(entryRows[i].id);
                 if (entryRows[i].id == previousEntry) entrySelection = i;
@@ -832,7 +1104,8 @@ private:
             gtk_widget_set_visible(emptyLabel, entryRows.empty());
             refreshing = false;
             sensitivity();
-            message(dirty ? tr("Unsaved changes") : tr("Ready"));
+            previewSelected();
+            message(recentWarning ? tr("The database is open, but its location could not be remembered.") : dirty ? tr("Unsaved changes") : tr("Ready"));
         });
     }
 
@@ -842,29 +1115,80 @@ private:
         return index < entryRows.size() ? entryRows[index].id : std::string{};
     }
 
+    void clearPreview() {
+        ++previewSerial;
+        for (auto* label : {previewTitle, previewUsername, previewUrl, previewNotes}) gtk_label_set_text(label, "");
+        gtk_editable_set_text(previewPassword, "");
+        auto* delegate = previewPassword;
+        for (unsigned i = 0; i < 8 && delegate; ++i) {
+            if (GTK_IS_TEXT(delegate)) { gtk_text_set_visibility(GTK_TEXT(delegate), FALSE); break; }
+            delegate = gtk_editable_get_delegate(delegate);
+        }
+        gtk_widget_set_visible(preview, FALSE); gtk_widget_set_visible(previewHint, TRUE);
+    }
+
+    void previewSelected() {
+        clearPreview();
+        const auto id = selectedEntry();
+        if (!unlocked || id.empty() || refreshing) return;
+        const auto serial = previewSerial;
+        submit([id](RemoteSession& session) { EntryDetails details; session.entry(id, details); return details; },
+            [this, id, serial](EntryDetails& details) {
+                if (serial != previewSerial || !unlocked || id != selectedEntry() || details.id != id) return;
+                gtk_label_set_text(previewTitle, details.title.c_str());
+                gtk_label_set_text(previewUsername, details.username.c_str());
+                gtk_editable_set_text(previewPassword, details.password.c_str());
+                gtk_label_set_text(previewUrl, details.url.c_str());
+                gtk_label_set_text(previewNotes, details.notes.c_str());
+                gtk_widget_set_visible(preview, TRUE); gtk_widget_set_visible(previewHint, FALSE);
+                if (adw_overlay_split_view_get_collapsed(split)) adw_overlay_split_view_set_show_sidebar(split, FALSE);
+                message(recentWarning ? tr("The database is open, but its location could not be remembered.") : dirty ? tr("Unsaved changes") : tr("Ready"));
+            });
+    }
+
     void groupName(bool rename)
     {
         if (!unlocked || busy) return;
-        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(rename ? tr("Rename group") : tr("New group"), nullptr));
+        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(rename ? tr("Edit group") : tr("New group"), nullptr));
         auto* input = GTK_EDITABLE(gtk_entry_new());
         secureEditable(GTK_WIDGET(input));
+        gtk_entry_set_placeholder_text(GTK_ENTRY(input), tr("Group name"));
+        gtk_entry_set_activates_default(GTK_ENTRY(input), TRUE);
+        gtk_accessible_update_property(GTK_ACCESSIBLE(input), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Group name"), -1);
+        auto iconChoice = std::make_shared<int>(-1);
+        int currentIcon = 48; bool customIcon = false;
         if (rename) {
             for (const auto& group : groupRows) {
-                if (group.id == selectedGroup) gtk_editable_set_text(input, group.name.c_str());
+                if (group.id == selectedGroup) {
+                    gtk_editable_set_text(input, group.name.c_str()); currentIcon = group.icon; customIcon = group.customIcon;
+                }
             }
         }
-        adw_alert_dialog_set_extra_child(dialog, GTK_WIDGET(input));
+        auto* fields = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+        gtk_box_append(GTK_BOX(fields), GTK_WIDGET(input));
+        if (rename) gtk_box_append(GTK_BOX(fields), DatabaseIcons::chooser(currentIcon, customIcon, iconChoice));
+        adw_alert_dialog_set_extra_child(dialog, fields);
         adw_alert_dialog_add_responses(dialog, "cancel", tr("Cancel"), "save", tr("Save"), nullptr);
+        adw_alert_dialog_set_default_response(dialog, "save");
+        adw_alert_dialog_set_response_appearance(dialog, "save", ADW_RESPONSE_SUGGESTED);
+        adw_alert_dialog_set_close_response(dialog, "cancel");
+        adw_alert_dialog_set_response_enabled(dialog, "save", *gtk_editable_get_text(input) != '\0');
+        g_signal_connect(input, "changed", G_CALLBACK(+[](GtkEditable* field, gpointer p) {
+            adw_alert_dialog_set_response_enabled(ADW_ALERT_DIALOG(p), "save", *gtk_editable_get_text(field) != '\0');
+        }), dialog);
         const auto group = selectedGroup;
         const auto epoch = generation;
-        auto* callback = new std::function<void(const char*)>([this, epoch, rename, group, input](const char* response) {
-            if (epoch != generation || !unlocked || !g_str_equal(response, "save")) return;
+        auto* callback = new std::function<void(const char*)>([this, epoch, rename, group, input, iconChoice](const char* response) {
             auto name = Sensitive::owned(new std::string(gtk_editable_get_text(input)));
             gtk_editable_set_text(input, "");
-            submit([rename, group, name](RemoteSession& session) {
-                return rename ? session.renameGroup(group, *name) : !session.addGroup(group, *name).empty();
+            if (epoch != generation || !unlocked || !g_str_equal(response, "save")) return;
+            submit([rename, group, name, icon = *iconChoice](RemoteSession& session) {
+                return rename ? session.updateGroup(group, *name, icon) : !session.addGroup(group, *name).empty();
             }, [this](bool ok) {
-                if (ok) { dirty = true; refresh(); }
+                if (ok) {
+                    for (guint i = 0; i < groupRows.size(); ++i) if (groupRows[i].id == selectedGroup) groups->expandGroup(i);
+                    dirty = true; refresh();
+                }
                 else message(tr("Enter a nonempty name."));
             });
         });
@@ -897,6 +1221,9 @@ private:
 
     void editSelected()
     {
+        const auto epoch = generation; checkIdle();
+        if (!unlocked || epoch != generation) return;
+        idle.activity(IdleLock::bootTime());
         const auto id = selectedEntry();
         if (id.empty()) return;
         submit([id](RemoteSession& session) { EntryDetails details; session.entry(id, details); return details; },
@@ -951,6 +1278,7 @@ private:
             auto* row = secret ? adw_password_entry_row_new() : adw_entry_row_new();
             adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), title);
             secureEditable(row, secret);
+            adw_entry_row_set_activates_default(ADW_ENTRY_ROW(row), TRUE);
             gtk_editable_set_text(GTK_EDITABLE(row), value.c_str());
             adw_preferences_group_add(credentials, row);
             return GTK_EDITABLE(row);
@@ -969,6 +1297,7 @@ private:
         auto* notesRow = ADW_EXPANDER_ROW(adw_expander_row_new());
         adw_preferences_row_set_title(ADW_PREFERENCES_ROW(notesRow), tr("Notes"));
         auto* notes = GTK_TEXT_VIEW(gtk_text_view_new());
+        gtk_accessible_update_property(GTK_ACCESSIBLE(notes), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Notes"), -1);
         gtk_text_view_set_wrap_mode(notes, GTK_WRAP_WORD_CHAR);
         gtk_text_buffer_set_enable_undo(gtk_text_view_get_buffer(notes), FALSE);
         gtk_widget_set_size_request(GTK_WIDGET(notes), -1, 140);
@@ -976,18 +1305,23 @@ private:
         adw_expander_row_add_row(notesRow, GTK_WIDGET(notes));
         adw_preferences_group_add(additional, GTK_WIDGET(notesRow));
         adw_preferences_page_add(page, additional);
+        auto iconChoice = std::make_shared<int>(-1);
+        auto* iconGroup = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+        adw_preferences_group_set_title(iconGroup, tr("Icon"));
+        adw_preferences_group_add(iconGroup, DatabaseIcons::chooser(details.icon < 0 ? 0 : details.icon, details.customIcon, iconChoice));
+        adw_preferences_page_add(page, iconGroup);
         adw_toolbar_view_set_content(toolbar, GTK_WIDGET(page));
         const auto id = details.id;
         const auto group = details.group.empty() ? selectedGroup : details.group;
         const auto epoch = generation;
-        auto* save = button(tr("Save entry"), [this, dialog, epoch, id, group, title, username, password, url, notes] {
+        auto* save = button(tr("Save entry"), [this, dialog, epoch, id, group, title, username, password, url, notes, iconChoice] {
             if (!unlocked || busy || epoch != generation) return;
             auto* buffer = gtk_text_view_get_buffer(notes);
             GtkTextIter start, end;
             gtk_text_buffer_get_bounds(buffer, &start, &end);
             auto* text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
             auto edited = Sensitive::owned(new EntryDetails{id, group, gtk_editable_get_text(title), gtk_editable_get_text(username),
-                                gtk_editable_get_text(password), gtk_editable_get_text(url), text});
+                                gtk_editable_get_text(password), gtk_editable_get_text(url), text, *iconChoice});
             Sensitive::erase(text, std::strlen(text)); g_free(text);
             if (edited->title.empty()) return;
             clearForm(GTK_WIDGET(dialog));
@@ -1002,6 +1336,11 @@ private:
         gtk_widget_add_css_class(save, "suggested-action");
         adw_header_bar_pack_end(header, save);
         adw_dialog_set_child(dialog, GTK_WIDGET(toolbar));
+        adw_dialog_set_default_widget(dialog, save);
+        gtk_widget_set_sensitive(save, *gtk_editable_get_text(title) != '\0');
+        g_signal_connect(title, "changed", G_CALLBACK(+[](GtkEditable* field, gpointer p) {
+            gtk_widget_set_sensitive(GTK_WIDGET(p), *gtk_editable_get_text(field) != '\0');
+        }), save);
         g_weak_ref_set(&editor, G_OBJECT(dialog));
         g_signal_connect(dialog, "closed", G_CALLBACK(+[](AdwDialog* closed, gpointer) {
             clearForm(GTK_WIDGET(closed));
@@ -1078,15 +1417,31 @@ private:
     AdwApplication* application;
     GtkWindow* window = nullptr;
     GtkStack* stack = nullptr;
+    GtkWidget* welcome = nullptr;
+    GtkWidget *welcomeNew = nullptr, *welcomeOpen = nullptr, *recentButton = nullptr;
+    GtkWidget* forgetButton = nullptr;
+    GtkLabel* recentLabel = nullptr;
+    RecentDatabase recent;
+    bool recentWarning = false;
+    std::string currentPath, requestedPath;
+    guint openRequestTimer = 0;
+    unsigned openAttempts = 0;
     GtkLabel* status = nullptr;
     AdwWindowTitle* windowTitle = nullptr;
-    std::unique_ptr<SummaryList> groups, entries;
+    std::unique_ptr<NavigationList> groups;
+    std::unique_ptr<SummaryList> entries;
     AdwOverlaySplitView* split = nullptr;
     GtkWidget* sidebarButton = nullptr;
     GtkWidget* emptyLabel = nullptr;
+    GtkWidget *preview = nullptr, *previewHint = nullptr;
+    GtkLabel *previewTitle = nullptr, *previewUsername = nullptr, *previewUrl = nullptr, *previewNotes = nullptr;
+    GtkEditable* previewPassword = nullptr;
+    unsigned previewSerial = 0;
     GtkEditable* search = nullptr;
     GtkWidget *newButton = nullptr, *openButton = nullptr, *saveButton = nullptr, *lockButton = nullptr;
     GtkWidget* cancelButton = nullptr;
+    GtkWidget* dirtyIndicator = nullptr;
+    bool closeSavePending = false;
     GtkWidget* automaticRecoveryButton = nullptr;
     AdwBanner* guardBanner = nullptr;
     std::unique_ptr<SessionGuard> guard;
@@ -1111,6 +1466,7 @@ private:
     std::vector<EntrySummary> entryRows;
     std::string selectedGroup;
     bool unlocked = false;
+    bool hasOpenedDatabase = false;
     bool dirty = false;
     bool busy = false;
     bool refreshing = false;
@@ -1137,7 +1493,7 @@ int main(int argc, char** argv)
     bind_textdomain_codeset("keepassxc-gnome", "UTF-8");
     textdomain("keepassxc-gnome");
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::puts("KeePassXC GNOME Development 0.1.0");
+        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development 0.1.0" : "KeePassXC GNOME 0.1.0");
         return 0;
     }
     if (argc == 2 && std::string(argv[1]) == "--language-check") {
@@ -1155,12 +1511,17 @@ int main(int argc, char** argv)
         std::fputs("KeePassXC crypto initialization failed\n", stderr);
         return 1;
     }
-    auto* application = adw_application_new("org.keepassxc.Gnome.Development", G_APPLICATION_NON_UNIQUE);
+    auto* application = adw_application_new("org.keepassxc.Gnome.Development", GApplicationFlags(G_APPLICATION_NON_UNIQUE | G_APPLICATION_HANDLES_OPEN));
     std::unique_ptr<Window> window;
     g_signal_connect(application, "activate", G_CALLBACK(+[](GApplication* app, gpointer data) {
         auto& window = *static_cast<std::unique_ptr<Window>*>(data);
         if (!window) window = std::make_unique<Window>(ADW_APPLICATION(app));
         window->present();
+    }), &window);
+    g_signal_connect(application, "open", G_CALLBACK(+[](GApplication* app, GFile** files, int count, const char*, gpointer data) {
+        auto& window = *static_cast<std::unique_ptr<Window>*>(data);
+        if (!window) window = std::make_unique<Window>(ADW_APPLICATION(app));
+        window->present(); window->openFiles(files, count);
     }), &window);
     const auto result = g_application_run(G_APPLICATION(application), argc, argv);
     window.reset();

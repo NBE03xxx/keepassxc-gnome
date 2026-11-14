@@ -7,7 +7,7 @@ export KPXC_UI_APP="$PWD/build/bin/keepassxc-gnome"
 export KPXC_UI_SCRIPT="$PWD/tests/ui_smoke.py"
 if [[ ${1:-} == --orca ]]; then
     command -v orca >/dev/null || { echo 'Orca is required; consult before installing it.' >&2; exit 1; }
-    kpxc_ui="$PWD/build/ui-orca-${KPXC_UI_LANGUAGE:-ja}"
+    kpxc_ui="${KPXC_UI_ORCA_ROOT:-$PWD/build/ui-orca-${KPXC_UI_LANGUAGE:-ja}}"
     export KPXC_UI_SCRIPT="$PWD/tests/ui_orca.py" KPXC_UI_EXPECT_EXIT=1 KPXC_UI_ORCA=1
     if [[ -n ${2:-} ]]; then
         export KPXC_UI_APP="$(realpath -- "$2")"
@@ -18,6 +18,11 @@ elif [[ ${1:-} == --package ]]; then
     kpxc_ui="$PWD/build/ui-package-test"
     export KPXC_UI_APP="$(realpath -- "${2:?staged package launcher required}")"
     [[ -x $KPXC_UI_APP ]]
+elif [[ ${1:-} == --file-open ]]; then
+    kpxc_ui="$PWD/build/ui-file-open-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_file_open.py"
+    export KPXC_UI_FIXTURE_WRITER="$PWD/build/bin/gnome_welcome_ui_probe"
+    if [[ -n ${2:-} ]]; then export KPXC_UI_APP="$(realpath -- "$2")"; [[ -x $KPXC_UI_APP ]]; kpxc_ui+="-package"; fi
 elif [[ ${1:-} == --guard ]]; then
     kpxc_ui="$PWD/build/ui-guard-${KPXC_UI_LANGUAGE:-ja}"
     export KPXC_UI_SCRIPT="$PWD/tests/ui_guard.py" KPXC_UI_GUARD_FAILURE=1
@@ -67,6 +72,24 @@ elif [[ ${1:-} == --lifetime ]]; then
     export KPXC_UI_SCRIPT="$PWD/tests/ui_lifetime.py"
     export KPXC_UI_APP="$PWD/build/bin/gnome_lifetime_ui_probe"
     export KPXC_UI_EXPECT_EXIT=1
+elif [[ ${1:-} == --default-keys || ${1:-} == --default-keys-asan ]]; then
+    kpxc_ui="$PWD/build/ui-default-keys-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_default_keys.py" KPXC_UI_APP="$PWD/build/bin/gnome_default_keys_ui_probe"
+    if [[ $1 == --default-keys-asan ]]; then
+        kpxc_ui+="-asan"
+        mkdir -p "$kpxc_ui/bin" "$kpxc_ui/share"
+        cp build/reader-asan-output/bin/gnome_default_keys_ui_probe "$kpxc_ui/bin/"
+        cp build/bin/keepassxc-gnome-worker build/bin/keepassxc-gnome-picker "$kpxc_ui/bin/"
+        cp -a build/share/locale "$kpxc_ui/share/"
+        export KPXC_UI_APP="$kpxc_ui/bin/gnome_default_keys_ui_probe" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:strict_string_checks=1
+    fi
+    rm -f -- "$kpxc_ui/default-keys-phase"
+    export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_KEYBOARD=1
+elif [[ ${1:-} == --unlock-keys ]]; then
+    kpxc_ui="$PWD/build/ui-unlock-keys-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_unlock_keys.py"
+    export KPXC_UI_APP="$PWD/build/bin/gnome_lifetime_ui_probe"
+    export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_ENTER_KEYS=1 KPXC_UI_KEYBOARD=1
 elif [[ ${1:-} == --polish-asan ]]; then
     kpxc_ui="$PWD/build/ui-polish-asan"
     mkdir -p "$kpxc_ui/bin" "$kpxc_ui/share"
@@ -77,11 +100,38 @@ elif [[ ${1:-} == --polish-asan ]]; then
     export KPXC_UI_APP="$kpxc_ui/bin/gnome_polish_ui_probe"
     export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_PASS="PASS polish GUI:"
     export ASAN_OPTIONS=detect_leaks=${KPXC_GUI_DETECT_LEAKS:-0}:abort_on_error=1:strict_string_checks=1
+elif [[ ${1:-} == --welcome-asan ]]; then
+    kpxc_ui="$PWD/build/ui-welcome-asan"
+    mkdir -p "$kpxc_ui/bin" "$kpxc_ui/share"
+    cp build/reader-asan-output/bin/gnome_welcome_ui_probe "$kpxc_ui/bin/gnome_welcome_ui_probe"
+    cp build/bin/keepassxc-gnome-worker build/bin/keepassxc-gnome-picker "$kpxc_ui/bin/"
+    cp -a build/share/locale "$kpxc_ui/share/"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_lifetime.py" KPXC_UI_APP="$kpxc_ui/bin/gnome_welcome_ui_probe"
+    export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_PASS="PASS welcome GUI:"
+    export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:strict_string_checks=1
+elif [[ ${1:-} == --welcome || ${1:-} == --public-welcome ]]; then
+    kpxc_ui="$PWD/build/ui-${1#--}-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_lifetime.py"
+    export KPXC_UI_APP="$PWD/build/bin/gnome_welcome_ui_probe"
+    if [[ $1 == --public-welcome ]]; then export KPXC_UI_APP="$PWD/build/bin/gnome_public_welcome_ui_probe"; fi
+    export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_PASS="PASS welcome GUI:"
 elif [[ ${1:-} == --polish ]]; then
     kpxc_ui="$PWD/build/ui-polish-${KPXC_UI_LANGUAGE:-ja}"
     export KPXC_UI_SCRIPT="$PWD/tests/ui_lifetime.py"
     export KPXC_UI_APP="$PWD/build/bin/gnome_polish_ui_probe"
     export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_PASS="PASS polish GUI:"
+elif [[ ${1:-} == --close || ${1:-} == --close-asan ]]; then
+    kpxc_ui="$PWD/build/ui-close-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_lifetime.py" KPXC_UI_APP="$PWD/build/bin/gnome_close_ui_probe"
+    if [[ $1 == --close-asan ]]; then
+        kpxc_ui+="-asan"
+        mkdir -p "$kpxc_ui/bin" "$kpxc_ui/share"
+        cp build/reader-asan-output/bin/gnome_close_ui_probe "$kpxc_ui/bin/"
+        cp build/bin/keepassxc-gnome-worker build/bin/keepassxc-gnome-picker "$kpxc_ui/bin/"
+        cp -a build/share/locale "$kpxc_ui/share/"
+        export KPXC_UI_APP="$kpxc_ui/bin/gnome_close_ui_probe" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:strict_string_checks=1
+    fi
+    export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_PASS="PASS close GUI:"
 elif [[ ${1:-} == --save ]]; then
     kpxc_ui="$PWD/build/ui-save-test"
     export KPXC_UI_SCRIPT="$PWD/tests/ui_save.py"
@@ -95,7 +145,9 @@ dbus-run-session -- bash -eu -o pipefail <<'SESSION'
 # inhibitor and notification contracts are tested with a private mock manager.
 export DBUS_SYSTEM_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
 export XDG_CONFIG_HOME="$KPXC_UI_ROOT/config" XDG_CACHE_HOME="$KPXC_UI_ROOT/cache"
-export XDG_STATE_HOME="$KPXC_UI_ROOT/state" XDG_DATA_HOME="$KPXC_UI_ROOT/data"
+export XDG_STATE_HOME
+XDG_STATE_HOME=$(mktemp -d "$KPXC_UI_ROOT/state.XXXXXX")
+export XDG_DATA_HOME="$KPXC_UI_ROOT/data"
 export XDG_RUNTIME_DIR
 XDG_RUNTIME_DIR=$(mktemp -d "$KPXC_UI_ROOT/runtime.XXXXXX")
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME" "$XDG_RUNTIME_DIR"
@@ -109,7 +161,7 @@ dbus-update-activation-environment XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME
 kpxc_shell_options=()
 # Test-only window activation on this disposable bus; never enable this flag
 # on the login session. No application dump protection is changed.
-if [[ ${KPXC_UI_ORCA:-0} == 1 ]]; then kpxc_shell_options+=(--unsafe-mode); fi
+if [[ ${KPXC_UI_ORCA:-0} == 1 || ${KPXC_UI_KEYBOARD:-0} == 1 ]]; then kpxc_shell_options+=(--unsafe-mode); fi
 gnome-shell "${kpxc_shell_options[@]}" --headless --no-x11 --wayland-display=kpxc-gnome-test --virtual-monitor=1280x800 > "$KPXC_UI_ROOT/shell.log" 2>&1 &
 shell_pid=$!
 app_pid=

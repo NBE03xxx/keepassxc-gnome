@@ -40,8 +40,6 @@ msgstr "エントリーを更新できませんでした。"
 msgid "Create"
 msgstr "作成"
 
-msgid "Create or open a test database to get started."
-msgstr "検証用データベースを作成するか、開いてください。"
 
 msgid "Credentials"
 msgstr "認証情報"
@@ -178,17 +176,15 @@ msgstr "データベースはロックされています"
 msgid "Could not open the file chooser. Try again."
 msgstr "ファイル選択画面を開けませんでした。もう一度お試しください。"
 
-msgid "This database exceeds the development build's read limits. The file was not changed."
-msgstr "このデータベースは開発版の読み込み上限を超えています。ファイルは変更していません。"
 
-msgid "This database uses KDF settings this build cannot preserve or compute correctly. The file was not changed."
-msgstr "このデータベースは、この開発版で正しく計算または保持できないKDF設定を使用しています。ファイルは変更していません。"
+msgid "This database uses KDF settings this application cannot preserve or compute correctly. The file was not changed."
+msgstr "このデータベースは、このアプリで正しく計算または保持できないKDF設定を使用しています。ファイルは変更していません。"
 
 msgid "Could not read a local regular database file."
 msgstr "ローカルの通常ファイルとしてデータベースを読み込めませんでした。"
 
-msgid "This database contains data this build cannot safely preserve. The file was not changed."
-msgstr "このデータベースには、この開発版で安全に保持できないデータが含まれています。ファイルは変更していません。"
+msgid "This database contains data this application cannot safely preserve. The file was not changed."
+msgstr "このデータベースには、このアプリで安全に保持できないデータが含まれています。ファイルは変更していません。"
 
 msgid "The operation exceeded its time limit. The database is locked."
 msgstr "処理時間の上限を超えました。データベースはロックされています。"
@@ -214,8 +210,6 @@ msgstr "新しいファイルに保存"
 msgid "Recovery files"
 msgstr "復旧用ファイル"
 
-msgid "Database saved and verified."
-msgstr "データベースを保存し、検証しました。"
 
 msgid "Copy saved. The current database still has its previous save state."
 msgstr "コピーを保存しました。編集中のデータベースの保存状態は変わりません。"
@@ -278,7 +272,7 @@ msgid "Matches the recorded encrypted hash; contents still require unlocking."
 msgstr "記録した暗号化ハッシュと一致しています。内容の確認にはロック解除が必要です。"
 
 msgid "Unverified copy; unlocking and data validation are required."
-msgstr "未検証のコピーです。ロック解除とデータ検証が必要です。"
+msgstr "復旧用コピーです。開く前にパスワードとデータの整合性の確認が必要です。"
 
 msgid "Open copy"
 msgstr "コピーを開く"
@@ -366,3 +360,124 @@ msgstr "保存済み"
 
 msgid "Close"
 msgstr "閉じる"
+
+msgid "Choose icon"
+msgstr "アイコンを選択"
+
+msgid "Icon %d"
+msgstr "アイコン %d"
+
+msgid "Icon"
+msgstr "アイコン"
+
+msgid "Group icon"
+msgstr "グループのアイコン"
+
+msgid "Could not update the group icon."
+msgstr "グループのアイコンを更新できませんでした。"
+
+msgid "Custom icon (preserved)"
+msgstr "カスタムアイコン（保持）"
+
+msgid "The existing custom icon is kept unless you choose another icon."
+msgstr "別のアイコンを選択しない限り、既存のカスタムアイコンを保持します。"
+
+msgid "Password preview"
+msgstr "パスワードのプレビュー"
+
+msgid "Select an entry to preview it. Double-click or press Enter to edit."
+msgstr "エントリーを選択するとプレビューします。ダブルクリックまたはEnterで編集できます。"
+
+msgid "Entries"
+msgstr "エントリー一覧"
+
+msgid "Edit group"
+msgstr "グループを編集"
+
+msgid "Group name"
+msgstr "グループ名"
+
+msgid "No database is open"
+msgstr "データベースが開かれていません"
+
+msgid "Welcome to KeePassXC GNOME"
+msgstr "KeePassXC GNOMEへようこそ"
+
+msgid "Welcome"
+msgstr "ようこそ"
+
+msgid "Create a database or open one to get started."
+msgstr "新しくデータベースを作成するか、お持ちのファイルを開いて始めましょう。"
+
+msgid "Unlock your database"
+msgstr "ロックを解除してください"
+
+msgid "Your passwords are ready when you are."
+msgstr "パスワードを入力して、前回のデータベースを開きましょう。"
+
+msgid "Open a database to continue."
+msgstr "データベースを開いて、続きを始めましょう。"
+
+
+msgid "Forget recent database"
+msgstr "最近のデータベースを履歴から削除"
+
+msgid "Recent database"
+msgstr "最近のデータベース"
+
+msgid "Could not update recent database preferences. Check the application state folder permissions."
+msgstr "履歴の設定を更新できませんでした。アプリの状態保存フォルダーの権限を確認してください。"
+
+msgid "The database is open, but its location could not be remembered."
+msgstr "データベースは開かれていますが、ファイルの場所を履歴に記録できませんでした。"
+
+msgid "This database exceeds the supported read limits. The file was not changed."
+msgstr "このデータベースは対応する読み込み上限を超えています。ファイルは変更していません。"
+
+msgid "Database saved."
+msgstr "データベースを保存しました。"
+
+msgid "Opening KDBX files"
+msgstr "KDBXファイルの関連付け"
+
+msgid "In Files, right-click a KDBX file and choose Open With to select KeePassXC or KeePassXC GNOME. You can change the default application in the file's Properties. This app does not overwrite an explicitly selected default application."
+msgstr "「ファイル」でKDBXファイルを右クリックし、「別のアプリで開く」からKeePassXCまたはKeePassXC GNOMEを選べます。既定のアプリはファイルのプロパティで変更できます。このアプリは、明示的に選ばれた既定のアプリを上書きしません。"
+
+msgid "Open one database at a time."
+msgstr "データベースは1件ずつ開いてください。"
+
+msgid "Only local database files can be opened. Choose a local KDBX file."
+msgstr "ローカルのデータベースファイルだけを開けます。ローカルのKDBXファイルを選択してください。"
+
+msgid "Close the current dialog before opening another database."
+msgstr "現在のダイアログを閉じてから、別のデータベースを開いてください。"
+
+msgid "Unsaved"
+msgstr "未保存"
+
+msgid "Changes have not been saved to the database file."
+msgstr "変更内容はデータベースファイルに保存されていません。"
+
+msgid "Save changes before closing?"
+msgstr "変更を保存してから閉じますか？"
+
+msgid "Your changes have not been saved to the database file. Save them before closing, or discard them. Confirmed edits remain in encrypted recovery records until you remove those records."
+msgstr "変更内容はデータベースファイルに保存されていません。保存してから閉じるか、変更を破棄してください。確定した編集内容は、削除するまで暗号化された復旧記録に残ります。"
+
+msgid "Save (overwrite)"
+msgstr "保存（上書き）"
+
+msgid "Save as…"
+msgstr "名前を付けて保存…"
+
+msgid "Wait for the current operation to finish before closing."
+msgstr "現在の処理が終わってからアプリを閉じてください。"
+
+msgid "Finish or cancel the current dialog before closing the application."
+msgstr "現在の画面で編集を確定するかキャンセルしてから、アプリを閉じてください。"
+
+msgid "Save cancelled. Your changes remain open."
+msgstr "保存をキャンセルしました。変更内容は開いたままです。"
+
+msgid "Unsaved database"
+msgstr "未保存のデータベース"

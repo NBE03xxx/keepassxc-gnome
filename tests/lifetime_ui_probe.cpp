@@ -88,7 +88,7 @@ struct LifetimeUiProbe {
             auto* root = g_build_filename(files.path().toUtf8().constData(), name.c_str(), nullptr); g_mkdir_with_parents(root, 0700); w.checkpointFolder = root; g_free(root);
             w.submit([this, folder = w.checkpointFolder](RemoteSession& session) {
                 return session.unlock(source, CoreSession::FixturePassword) && session.enableRecovery(folder);
-            }, [this](bool ok) { check(ok, "protected session initialization"); ui->unlocked = ui->sourceKnown = true; gtk_stack_set_visible_child_name(ui->stack, "unlocked"); ui->refresh(); });
+            }, [this](bool ok) { check(ok, "protected session initialization"); ui->hasOpenedDatabase = ui->unlocked = ui->sourceKnown = true; gtk_stack_set_visible_child_name(ui->stack, "unlocked"); ui->refresh(); });
             break;
         }
         case 1:
@@ -96,6 +96,7 @@ struct LifetimeUiProbe {
             w.submit([this](RemoteSession& session) { check(session.rename(entryId, "Confirmed pre-lock title"), "protected edit"); return session.lastCheckpoint(); }, [this](std::string& copy) { confirmedCopy = copy; ui->dirty = true; ui->refresh(); }); break;
         case 2: {
             w.entries->select(0);
+            if (w.busy) return G_SOURCE_CONTINUE; // Wait for the asynchronous preview before copying.
             const auto boot = IdleLock::bootTime(), monotonic = g_get_monotonic_time();
             w.idle.activity(boot - IdleLock::Timeout + 10000000);
             // A compositor may take ownership before the next test tick.
@@ -131,15 +132,16 @@ struct LifetimeUiProbe {
             w.editSelected(); break;
         case 5: {
             if (!dialog()) return G_SOURCE_CONTINUE;
+            check(gtk_widget_get_visible(w.preview) && !std::strcmp(gtk_editable_get_text(w.previewPassword), "synthetic-entry-password"), "selected entry has a password preview");
             std::function<GtkWidget*(GtkWidget*)> findRow = [&](GtkWidget* widget) -> GtkWidget* {
-                if (ADW_IS_ACTION_ROW(widget)) return widget;
+                if (g_object_get_data(G_OBJECT(widget), "summary-title")) return widget;
                 for (auto* child = gtk_widget_get_first_child(widget); child; child = gtk_widget_get_next_sibling(child)) if (auto* found = findRow(child)) return found;
                 return nullptr;
             };
             auto* listRow = findRow(w.entries->widget());
             if (!listRow) return G_SOURCE_CONTINUE;
             previousRow = GTK_WIDGET(g_object_ref(listRow));
-            check(!adw_preferences_row_get_use_markup(ADW_PREFERENCES_ROW(previousRow)), "account metadata is never parsed as markup or emitted in markup errors");
+            check(!gtk_label_get_use_markup(GTK_LABEL(g_object_get_data(G_OBJECT(previousRow), "summary-title"))), "account metadata is never parsed as markup or emitted in markup errors");
             form = ADW_DIALOG(g_object_ref(dialog())); auto* row = find(GTK_WIDGET(form), ADW_TYPE_PASSWORD_ENTRY_ROW);
             check(row, "password row present"); password = GTK_EDITABLE(row); gtk_editable_set_text(password, "Unconfirmed synthetic draft");
             auto* delegate = gtk_editable_get_delegate(password);
@@ -202,10 +204,11 @@ struct LifetimeUiProbe {
             w.automaticLock();
             check(G_OBJECT(dialogs)->ref_count == references, "lock releases its full dialog-model reference"); g_object_unref(dialogs);
             check(!w.unlocked && !w.loading && w.entryRows.empty() && w.groupRows.empty() && !std::strcmp(gtk_editable_get_text(password), ""), "automatic lock conceals model and form immediately");
+            check(!gtk_widget_get_visible(w.preview) && !std::strlen(gtk_editable_get_text(w.previewPassword)) && !std::strlen(gtk_label_get_text(w.previewTitle)), "automatic lock also erases preview");
             check(std::all_of(delayedSecret, delayedSecret + std::strlen(Canary), [](char c) { return !c; }), "queued plaintext erased before stale callback runs");
             check(!secret_clipboard_live(lease), "automatic lock revokes clipboard provider");
-            check(!std::strcmp(adw_preferences_row_get_title(ADW_PREFERENCES_ROW(previousRow)), "")
-                && !std::strcmp(adw_action_row_get_subtitle(ADW_ACTION_ROW(previousRow)), ""), "retained accessible row no longer exposes account metadata");
+            check(!std::strcmp(SummaryList::title(previousRow), "")
+                && !std::strcmp(gtk_label_get_text(GTK_LABEL(g_object_get_data(G_OBJECT(previousRow), "summary-subtitle"))), ""), "retained accessible row no longer exposes account metadata");
             g_object_unref(previousRow); previousRow = nullptr;
             break;
         }
@@ -222,9 +225,15 @@ struct LifetimeUiProbe {
             w.credentials(false, confirmedCopy); break;
         }
         case 8: {
+            if (g_getenv("KPXC_UI_ENTER_KEYS")) {
+                if (!w.unlocked) return G_SOURCE_CONTINUE;
+                break;
+            }
             if (!dialog()) return G_SOURCE_CONTINUE;
             auto* row = find(GTK_WIDGET(dialog()), GTK_TYPE_PASSWORD_ENTRY); if (!row) return G_SOURCE_CONTINUE;
             gtk_editable_set_text(GTK_EDITABLE(row), CoreSession::FixturePassword);
+            gboolean activates = FALSE; g_object_get(row, "activates-default", &activates, nullptr);
+            check(activates, "password Enter activates dialog default response");
             if (!click(tr("Unlock"))) return G_SOURCE_CONTINUE;
             break;
         }

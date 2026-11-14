@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 project(KeePassXcGnome VERSION 0.1.0 LANGUAGES NONE)
 
+option(KPXC_GNOME_DEVELOPMENT_UI "Show development qualification in the frontend" OFF)
+
 include(ExternalProject)
 set(KEEPASSXC_SOURCE_DIR "${CMAKE_SOURCE_DIR}/upstream/keepassxc" CACHE PATH "Unmodified pinned KeePassXC checkout")
 if(NOT EXISTS "${KEEPASSXC_SOURCE_DIR}/CMakeLists.txt")
@@ -34,12 +36,13 @@ ExternalProject_Add(gnome_native
         "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=${CMAKE_SOURCE_DIR}/cmake/AttachFrontend.cmake"
         "-DKPXC_GNOME_SOURCE=${CMAKE_SOURCE_DIR}"
         "-DKPXC_GNOME_OUTPUT=${CMAKE_BINARY_DIR}"
+        "-DKPXC_GNOME_DEVELOPMENT_UI=${KPXC_GNOME_DEVELOPMENT_UI}"
         -DCMAKE_SKIP_RPATH=ON -DKPXC_MINIMAL=ON -DKPXC_FEATURE_NETWORK=OFF
         -DKPXC_FEATURE_DOCS=OFF -DWITH_X11=OFF -DWITH_TESTS=ON -DWITH_GUI_TESTS=OFF
     BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target keepassxc-gnome gnome_domain_tests gnome_compatibility_tests gnome_reader_finalization_tests
         gnome_upstream_cipher_tests gnome_upstream_hmac_tests gnome_upstream_hashed_tests
         gnome_upstream_kdbx3_tests gnome_upstream_kdbx4_tests gnome_xml_model_tests gnome_known_data_tests
-        gnome_process_domain_tests gnome_process_known_data_tests gnome_process_tests gnome_save_tests gnome_save_ui_probe gnome_lifetime_tests gnome_lifetime_ui_probe gnome_picker_tests gnome_polish_ui_probe gnome_stream_finalization_tests gnome_font_cache_tests
+        gnome_process_domain_tests gnome_process_known_data_tests gnome_process_tests gnome_save_tests gnome_save_ui_probe gnome_lifetime_tests gnome_lifetime_ui_probe gnome_picker_tests gnome_polish_ui_probe gnome_stream_finalization_tests gnome_font_cache_tests gnome_recent_tests gnome_welcome_ui_probe gnome_public_welcome_ui_probe gnome_close_ui_probe gnome_default_keys_ui_probe
     BUILD_ALWAYS TRUE
     INSTALL_COMMAND "")
 enable_testing()
@@ -139,3 +142,6 @@ add_test(NAME gnome_font_cache_tests COMMAND "${CMAKE_BINARY_DIR}/bin/gnome_font
 set_tests_properties(gnome_font_cache_tests PROPERTIES TIMEOUT 30)
 
 include("${CMAKE_SOURCE_DIR}/packaging/Install.cmake")
+
+add_test(NAME gnome_recent_tests COMMAND "${CMAKE_BINARY_DIR}/bin/gnome_recent_tests")
+set_tests_properties(gnome_recent_tests PROPERTIES TIMEOUT 20)

@@ -1,4 +1,4 @@
-KeePassXC GNOME Native Edition — development artifact
+KeePassXC GNOME Native Edition
 
 Independent front-end, adapters, scripts and original icon:
 Copyright 2026 KeePassXC GNOME contributors.
@@ -21,4 +21,4 @@ repository alone is not the complete corresponding source of this application.
 
 Qt, GTK, GLib, libadwaita, Botan and other system shared libraries are not
 bundled. Their notices and sources are provided by their Ubuntu packages.
-This development package is not an official KeePassXC release.
+This application is an independent project, not an official KeePassXC release.

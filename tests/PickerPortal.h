@@ -24,6 +24,8 @@ struct Portal {
     bool save = false, folder = false, wayland = false;
     unsigned parentHandles = 0;
     std::string request;
+    std::string expectedTitle = "合成データを選択", expectedName = "合成.kdbx";
+    std::string selectedUri = "file:///tmp/%E5%90%88%E6%88%90%20test.kdbx";
     explicit Portal(const char* address) {
         bus = g_dbus_connection_new_for_address_sync(address, GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT | G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION), nullptr, nullptr, nullptr);
         check(bus, "fake portal private connection");
@@ -39,13 +41,13 @@ struct Portal {
             const auto* core = std::strstr(limits, "Max core file size"); unsigned long soft = 1, hard = 1;
             check(core && std::sscanf(core, "Max core file size %lu %lu", &soft, &hard) == 2 && !soft && !hard, "helper core dumps remain disabled"); g_free(limits);
             const char* parent; const char* title; GVariant* options; g_variant_get(args, "(&s&s@a{sv})", &parent, &title, &options);
-            check((self.wayland ? g_str_has_prefix(parent, "wayland:") && std::strlen(parent) > 8 : !*parent) && !std::strcmp(title, "合成データを選択"), "localized title and parent metadata");
+            check((self.wayland ? g_str_has_prefix(parent, "wayland:") && std::strlen(parent) > 8 : !*parent) && !std::strcmp(title, self.expectedTitle.c_str()), "localized title and parent metadata");
             if (*parent) ++self.parentHandles;
             check((!std::strcmp(method, "SaveFile")) == self.save, "open/save method selection");
             gboolean modal = FALSE, multiple = TRUE, directory = FALSE;
             check(g_variant_lookup(options, "modal", "b", &modal) && modal && g_variant_lookup(options, "multiple", "b", &multiple) && !multiple, "single modal chooser");
             g_variant_lookup(options, "directory", "b", &directory); check(bool(directory) == self.folder, "directory selection mode");
-            if (self.save) { const char* name; check(g_variant_lookup(options, "current_name", "&s", &name) && !std::strcmp(name, "合成.kdbx"), "save filename supplied"); }
+            if (self.save) { const char* name; check(g_variant_lookup(options, "current_name", "&s", &name) && !std::strcmp(name, self.expectedName.c_str()), "save filename supplied"); }
             const char* token; check(g_variant_lookup(options, "handle_token", "&s", &token), "predictable request token");
             std::string unique(sender + 1); for (auto& c : unique) if (c == '.') c = '_';
             self.request = "/org/freedesktop/portal/desktop/request/" + unique + '/' + token;
@@ -59,7 +61,7 @@ struct Portal {
             if (self.reply != Hold && self.reply != BadHandle) {
                 GVariantBuilder values; g_variant_builder_init(&values, G_VARIANT_TYPE_VARDICT);
                 const std::string huge = "file:///tmp/" + std::string(9000, 'x');
-                const char* paths[]{self.reply == Oversized ? huge.c_str() : self.reply == Remote ? "file://other-host/tmp/remote.kdbx" : "file:///tmp/%E5%90%88%E6%88%90%20test.kdbx", "file:///tmp/second.kdbx", nullptr};
+                const char* paths[]{self.reply == Oversized ? huge.c_str() : self.reply == Remote ? "file://other-host/tmp/remote.kdbx" : self.selectedUri.c_str(), "file:///tmp/second.kdbx", nullptr};
                 g_variant_builder_add(&values, "{sv}", "uris", g_variant_new_strv(paths, self.reply == Multiple ? 2 : 1));
                 g_dbus_connection_emit_signal(self.bus, sender, self.request.c_str(), "org.freedesktop.portal.Request", "Response", g_variant_new("(ua{sv})", self.reply == Cancel ? 1U : 0U, &values), nullptr);
             }

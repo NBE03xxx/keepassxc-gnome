@@ -19,13 +19,13 @@ QJsonValue dispatch(CoreSession& session, const QString& op, const QJsonArray& a
     }
     if (op == "groups") {
         count(0); QJsonArray rows;
-        for (const auto& row : session.groups()) rows.append(QJsonArray{str(row.id), str(row.name), int(row.depth)});
+        for (const auto& row : session.groups()) rows.append(QJsonArray{str(row.id), str(row.name), int(row.depth), row.icon, row.customIcon});
         return rows;
     }
     if (op == "search") {
         count(2); QJsonArray rows;
         for (const auto& row : session.search(text(a[0]), text(a[1])))
-            rows.append(QJsonArray{str(row.id), str(row.title), str(row.username), str(row.group)});
+            rows.append(QJsonArray{str(row.id), str(row.title), str(row.username), str(row.group), row.icon, row.customIcon});
         return rows;
     }
     if (op == "entry") {
@@ -34,6 +34,8 @@ QJsonValue dispatch(CoreSession& session, const QString& op, const QJsonArray& a
     }
     if (op == "addGroup") { count(2); return str(session.addGroup(text(a[0]), text(a[1]))); }
     if (op == "renameGroup") { count(2); return session.renameGroup(text(a[0]), text(a[1])); }
+    if (op == "updateGroup") { count(3); if (!a[2].isDouble()) throw Error{}; return session.updateGroup(text(a[0]), text(a[1]), a[2].toInt(-2)); }
+    if (op == "setGroupIcon") { count(2); if (!a[1].isDouble()) throw Error{}; return session.setGroupIcon(text(a[0]), a[1].toInt(-1)); }
     if (op == "removeGroup") { count(1); return session.removeGroup(text(a[0])); }
     if (op == "addEntry") { count(2); auto value = Sensitive::owned(new EntryDetails(details(a[1]))); return str(session.addEntry(text(a[0]), *value)); }
     if (op == "updateEntry") { count(1); auto value = Sensitive::owned(new EntryDetails(details(a[0]))); return session.updateEntry(*value); }

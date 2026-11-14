@@ -1,0 +1,142 @@
+{
+  "date": "2026-11-14",
+  "checkpoint": "a8e44b219156a54836661f6e3d620b26ebdb6af4",
+  "languages": {
+    "ja": {
+      "checks": 28,
+      "cases": [
+        {
+          "case": "normal-database-name",
+          "role": "text",
+          "typed_character_count": 3,
+          "accessible_masked": false,
+          "letters_spoken": [
+            "q",
+            "z",
+            "v"
+          ]
+        },
+        {
+          "case": "masked-master",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        },
+        {
+          "case": "masked-confirmation",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        },
+        {
+          "case": "explicitly-revealed-master",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": false,
+          "whole_synthetic_value_spoken": true
+        },
+        {
+          "case": "explicitly-masked-again",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "whole_synthetic_value_spoken": false
+        },
+        {
+          "case": "master-masked-again",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        },
+        {
+          "case": "masked-entry-password",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        }
+      ],
+      "log_directory": "build/ui-orca-modes-ja8",
+      "log_sha256": {
+        "result.log": "1a258618368d8b3c518916690423d4af8246c69cc42dc53cf07f3a9d87da1f92",
+        "orca-debug.log": "f9558c8887d0cb9187279cfc2a9fd9fba01b6127aceced00c3176661c9d4af87",
+        "echo-cases.json": "6bc60916e230caa7c4cbbabec39a68ecaf3aef5ebed462c54dfc86b7beb98b68"
+      }
+    },
+    "en": {
+      "checks": 28,
+      "cases": [
+        {
+          "case": "normal-database-name",
+          "role": "text",
+          "typed_character_count": 3,
+          "accessible_masked": false,
+          "letters_spoken": [
+            "q",
+            "z",
+            "v"
+          ]
+        },
+        {
+          "case": "masked-master",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        },
+        {
+          "case": "masked-confirmation",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        },
+        {
+          "case": "explicitly-revealed-master",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": false,
+          "whole_synthetic_value_spoken": true
+        },
+        {
+          "case": "explicitly-masked-again",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "whole_synthetic_value_spoken": false
+        },
+        {
+          "case": "master-masked-again",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        },
+        {
+          "case": "masked-entry-password",
+          "role": "password text",
+          "typed_character_count": 3,
+          "accessible_masked": true,
+          "letters_spoken": []
+        }
+      ],
+      "log_directory": "build/ui-orca-modes-en",
+      "log_sha256": {
+        "result.log": "ed4c9a0f41eadc6f12534534b9cf2b68e671f09735f3784c443fab2dac77b0d3",
+        "orca-debug.log": "ee6411816593d3cc6ff21a0db80c3d313eb73115a9ff7998baf24b0a908a04fa",
+        "echo-cases.json": "6bc60916e230caa7c4cbbabec39a68ecaf3aef5ebed462c54dfc86b7beb98b68"
+      }
+    }
+  },
+  "sources": {
+    "tests/ui_orca.py": "79e42a7ebd337bb5a81d72b4dcff704fcdf5f653328a7e0c2f28073745a5e1c0",
+    "tests/private_keyboard.py": "3cf2aa8b9b39bdf52740176c87872b26dbdef7ba346e9b04e211b1f27678dab7",
+    "tests/orca_settings.py": "461caa059685a6c67d5fc667076617c4228d8842a326b4f029ecc1563c8a3e4d",
+    "tools/test-ui.sh": "b2eb5356f3dafee179b986c08e2ba0e21b0c81bbd25b91632218f212e8d092b5"
+  },
+  "runtime_packages": "libadwaita-1-0 1.9.1-0ubuntu0.2\nlibgtk-4-1 4.22.4+ds-0ubuntu0.1\nlibpango-1.0-0 1.57.0-1\norca 50.3-0ubuntu0.1\n",
+  "initial_physical_report": "conditions unknown; not resolved by this comparison"
+}

@@ -286,14 +286,14 @@ std::vector<EntrySummary> CoreSession::search(const std::string& query, const st
         return result;
     }
     EntrySearcher searcher(false, true);
-    const auto matches = query.empty() ? base->entriesRecursive()
+    const auto matches = query.empty() ? (group.empty() ? base->entriesRecursive() : base->entries())
                                       : searcher.search(QString::fromStdString(query), base);
     for (const auto* item : matches) {
         if (item->isRecycled()) {
             continue;
         }
         result.push_back({item->uuid().toString().toStdString(), item->title().toStdString(),
-                          item->username().toStdString(), item->group()->uuid().toString().toStdString()});
+                          item->username().toStdString(), item->group()->uuid().toString().toStdString(), item->iconNumber(), !item->iconUuid().isNull()});
     }
     return result;
 }
@@ -312,7 +312,7 @@ std::vector<GroupSummary> CoreSession::groups() const
         for (const auto* parent = group->parentGroup(); parent; parent = parent->parentGroup()) {
             ++depth;
         }
-        result.push_back({group->uuid().toString().toStdString(), group->name().toStdString(), depth});
+        result.push_back({group->uuid().toString().toStdString(), group->name().toStdString(), depth, group->iconNumber(), !group->iconUuid().isNull()});
     }
     return result;
 }
@@ -336,7 +336,14 @@ std::string CoreSession::addGroup(const std::string& parent, const std::string& 
 
 bool CoreSession::renameGroup(const std::string& id, const std::string& name)
 {
-    if (!database || name.empty()) {
+    return updateGroup(id, name);
+}
+
+bool CoreSession::updateGroup(const std::string& id, const std::string& name, int icon)
+{
+    // Validate both fields before either mutation. One worker request also
+    // means one protected checkpoint for the complete group edit.
+    if (!database || name.empty() || icon < -1 || icon > 68) {
         return false;
     }
     auto* group = database->rootGroup()->findGroupByUuid(QUuid(QString::fromStdString(id)));
@@ -344,6 +351,16 @@ bool CoreSession::renameGroup(const std::string& id, const std::string& name)
         return false;
     }
     group->setName(QString::fromStdString(name));
+    if (icon >= 0) group->setIcon(icon);
+    return true;
+}
+
+bool CoreSession::setGroupIcon(const std::string& id, int icon)
+{
+    if (!database || icon < 0 || icon > 68) return false;
+    auto* group = database->rootGroup()->findGroupByUuid(QUuid(QString::fromStdString(id)));
+    if (!group || group->isRecycled() || group == database->metadata()->recycleBin()) return false;
+    group->setIcon(icon);
     return true;
 }
 
@@ -363,7 +380,7 @@ bool CoreSession::removeGroup(const std::string& id)
 
 std::string CoreSession::addEntry(const std::string& group, const EntryDetails& details)
 {
-    if (!database || details.title.empty()) {
+    if (!database || details.title.empty() || details.icon < -1 || details.icon > 68) {
         return {};
     }
     auto* target = group.empty() ? database->rootGroup()
@@ -378,6 +395,7 @@ std::string CoreSession::addEntry(const std::string& group, const EntryDetails& 
     item->setPassword(QString::fromStdString(details.password));
     item->setUrl(QString::fromStdString(details.url));
     item->setNotes(QString::fromStdString(details.notes));
+    if (details.icon >= 0) item->setIcon(details.icon);
     item->setGroup(target);
     return item->uuid().toString().toStdString();
 }
@@ -391,14 +409,14 @@ bool CoreSession::entry(const std::string& id, EntryDetails& details) const
     }
     details = {item->uuid().toString().toStdString(), item->group()->uuid().toString().toStdString(),
                item->title().toStdString(), item->username().toStdString(), item->password().toStdString(),
-               item->url().toStdString(), item->notes().toStdString()};
+               item->url().toStdString(), item->notes().toStdString(), item->iconNumber(), !item->iconUuid().isNull()};
     return true;
 }
 
 bool CoreSession::updateEntry(const EntryDetails& details)
 {
     auto* item = findEntry(details.id);
-    if (!item || item->isRecycled() || details.title.empty()) {
+    if (!item || item->isRecycled() || details.title.empty() || details.icon < -1 || details.icon > 68) {
         return false;
     }
     item->beginUpdate();
@@ -407,6 +425,7 @@ bool CoreSession::updateEntry(const EntryDetails& details)
     item->setPassword(QString::fromStdString(details.password));
     item->setUrl(QString::fromStdString(details.url));
     item->setNotes(QString::fromStdString(details.notes));
+    if (details.icon >= 0 && !details.customIcon) item->setIcon(details.icon);
     item->endUpdate();
     return true;
 }

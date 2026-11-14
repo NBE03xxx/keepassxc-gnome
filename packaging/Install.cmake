@@ -15,3 +15,7 @@ install(CODE [[
     file(CREATE_LINK "../libexec/keepassxc-gnome/keepassxc-gnome"
         "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/keepassxc-gnome" SYMBOLIC)
 ]])
+
+# Register a distinct MIME package; never replace upstream's files/defaults.
+install(FILES "${CMAKE_SOURCE_DIR}/packaging/org.keepassxc.Gnome.Development.xml"
+    DESTINATION share/mime/packages)

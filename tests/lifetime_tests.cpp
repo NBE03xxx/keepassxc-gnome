@@ -246,6 +246,15 @@ void checkpoints(const QString& worker, const QString& cli) {
     const auto otherCopy = other.lastCheckpoint();
     RemoteSession session(worker); check(session.unlock(source.toStdString(), Master) && session.enableRecovery(folder.toStdString()), "enable encrypted edit protection");
     const auto initial = session.lastCheckpoint(); check(!initial.empty() && QFile::exists(QString::fromStdString(initial)) && !session.isModified(), "initial checkpoint does not dirty clean model");
+    const auto editedGroup = session.groups().front().id;
+    check(session.updateGroup(editedGroup, "Confirmed group edit", 25), "combined group edit acknowledged after checkpoint");
+    const auto groupCopy = session.lastCheckpoint();
+    check(groupCopy != initial && QFile::exists(QString::fromStdString(groupCopy)), "combined edit creates one new protected checkpoint");
+    CoreSession groupRecovered;
+    check(groupRecovered.unlock(groupCopy, Master) && groupRecovered.groups().front().name == "Confirmed group edit"
+          && groupRecovered.groups().front().icon == 25, "name and icon recovered together");
+    check(!session.updateGroup(editedGroup, "Must not apply", 69) && session.lastCheckpoint() == groupCopy,
+          "invalid combined edit preserves last confirmed checkpoint");
     for (unsigned i = 0; i < 8; ++i) check(session.rename(fixture.entry, "Confirmed synthetic edit " + std::to_string(i)), "edit acknowledgment follows durable checkpoint");
     const auto latest = session.lastCheckpoint();
     bool complete; auto records = SafeSave::recoveries(folder, complete);

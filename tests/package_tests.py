@@ -19,7 +19,9 @@ def require(ok, label):
 
 parser = argparse.ArgumentParser(); parser.add_argument('deb', type=Path); args = parser.parse_args()
 deb = args.deb.resolve()
-require(run(['dpkg-deb','-f',deb,'Package']) == 'keepassxc-gnome-development', 'independent development package name')
+package = run(['dpkg-deb','-f',deb,'Package'])
+require(package in ('keepassxc-gnome-development', 'keepassxc-gnome'), 'independent package name')
+release = package == 'keepassxc-gnome'
 with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as temp:
     work = Path(temp); stage = work / 'stage'; stage.mkdir()
     foreign = work / 'foreign-build'; foreign.mkdir()
@@ -29,11 +31,12 @@ with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as 
     control = work / 'control'; subprocess.run(['dpkg-deb','--control',str(deb),str(control)],check=True)
     require(set(p.name for p in control.iterdir()) == {'control','md5sums'}, 'no maintainer scripts or conffiles')
     metadata = (control / 'control').read_text()
-    require(not any(re.match(r'^(Conflicts|Replaces|Provides):', line) for line in metadata.splitlines()), 'no replacement of original KeePassXC')
+    relationships = [line for line in metadata.splitlines() if re.match(r'^(Conflicts|Replaces|Provides):', line)]
+    require(relationships == (['Conflicts: keepassxc-gnome-development', 'Replaces: keepassxc-gnome-development'] if release else []), 'only own development package may be replaced; never original KeePassXC')
     require('libbotan-3-10' in metadata and 'xdg-desktop-portal-gnome' in metadata, 'crypto and native picker runtime dependencies')
     application = stage / 'usr/libexec/keepassxc-gnome'; binary = stage / 'usr/bin/keepassxc-gnome'
     require(binary.is_symlink() and binary.resolve() == application / 'keepassxc-gnome', 'private helpers reached through relative launcher')
-    doc = stage / 'usr/share/doc/keepassxc-gnome-development'
+    doc = stage / 'usr/share/doc' / package
     manifest = json.loads((doc / 'build-manifest.json').read_text())
     require(hashlib.sha256((deb.parent / manifest['source']['file']).read_bytes()).hexdigest() == manifest['source']['sha256'], 'matching complete corresponding source')
     for name, digest in manifest['binaries'].items():
@@ -46,12 +49,17 @@ with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as 
         require('libQt6Widgets' not in dynamic, name + ' does not link Qt Widgets')
     for path in stage.rglob('*'):
         if path.is_file() and not path.is_symlink(): require(not path.stat().st_mode & 0o6000, path.relative_to(stage).as_posix() + ' no set-ID')
-    require('Development' in run([binary,'--version']), 'staged executable starts')
+    version_text = run([binary,'--version'])
+    require(version_text.startswith('KeePassXC GNOME') and (not release or version_text == 'KeePassXC GNOME 0.1.0'), 'staged executable version and public branding')
+    require(manifest.get('release_package', False) == release and (not release or manifest.get('development_ui') is False), 'release package cannot contain development UI')
     require(run([binary,'--language-check'],env=dict(os.environ, LC_ALL='ja_JP.UTF-8',LANGUAGE='ja')) == '準備完了', 'staged Japanese translation path')
     require(run([binary,'--language-check'],env=dict(os.environ, LC_ALL='C.UTF-8',LANGUAGE='de')) == 'Ready', 'staged English fallback')
     desktop = stage / 'usr/share/applications/org.keepassxc.Gnome.Development.desktop'
     subprocess.run(['desktop-file-validate',str(desktop)],check=True)
-    require('MimeType=' not in desktop.read_text() and '%F' not in desktop.read_text(), 'no file association or unsupported file arguments')
+    require('Name=KeePassXC GNOME\n' in desktop.read_text() and 'Name[ja]=KeePassXC GNOME\n' in desktop.read_text(), 'launcher has public Japanese and English names')
+    require('MimeType=application/x-keepass2;' in desktop.read_text() and 'Exec=keepassxc-gnome %f' in desktop.read_text(), 'optional KDBX handler with supported single-file argument')
+    require((stage/'usr/share/mime/packages/org.keepassxc.Gnome.Development.xml').is_file(), 'independent KDBX MIME definition')
+    require(not any(p.name == 'mimeapps.list' for p in stage.rglob('*')), 'no installed default-application override')
     for name in ['LICENSE.GPL-2','LICENSE.GPL-3','upstream-COPYING','upstream-LICENSE.LGPL-2.1','upstream-LICENSE.NOKIA-LGPL-EXCEPTION','upstream-LICENSE.Apache-2.0']:
         require((doc / name).stat().st_size > 0, name + ' attribution present')
     profile = work / 'profile'

@@ -18,6 +18,8 @@ struct EntrySummary
     std::string title;
     std::string username;
     std::string group;
+    int icon = 0;
+    bool customIcon = false;
 };
 
 struct GroupSummary
@@ -25,6 +27,8 @@ struct GroupSummary
     std::string id;
     std::string name;
     unsigned depth = 0;
+    int icon = 48;
+    bool customIcon = false;
 };
 
 struct EntryDetails
@@ -36,6 +40,8 @@ struct EntryDetails
     std::string password;
     std::string url;
     std::string notes;
+    int icon = -1; // -1 preserves the existing icon (including custom icons).
+    bool customIcon = false;
 };
 
 class CoreSession
@@ -59,6 +65,8 @@ public:
     std::vector<GroupSummary> groups() const;
     std::string addGroup(const std::string& parent, const std::string& name);
     bool renameGroup(const std::string& id, const std::string& name);
+    bool updateGroup(const std::string& id, const std::string& name, int icon = -1);
+    bool setGroupIcon(const std::string& id, int icon);
     bool removeGroup(const std::string& id);
     std::string addEntry(const std::string& group, const EntryDetails& details);
     bool entry(const std::string& id, EntryDetails& details) const;
