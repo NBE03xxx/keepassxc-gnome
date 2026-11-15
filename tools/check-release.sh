@@ -9,7 +9,7 @@ release_args=()
 release_package=keepassxc-gnome-development
 if [[ ${KPXC_RELEASE_PUBLIC:-0} == 1 ]]; then
     : "${KPXC_RELEASE_MAINTAINER:?Set the public Debian Maintainer name and email}"
-    release_version=${KPXC_RELEASE_VERSION:-0.1.0-1}
+    release_version=${KPXC_RELEASE_VERSION:-0.1.1-1}
     release_package=keepassxc-gnome
     release_args=(--release --maintainer "$KPXC_RELEASE_MAINTAINER")
 fi

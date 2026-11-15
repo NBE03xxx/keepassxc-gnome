@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(KeePassXcGnome VERSION 0.1.0 LANGUAGES NONE)
+project(KeePassXcGnome VERSION 0.1.1 LANGUAGES NONE)
 
 option(KPXC_GNOME_DEVELOPMENT_UI "Show development qualification in the frontend" OFF)
 

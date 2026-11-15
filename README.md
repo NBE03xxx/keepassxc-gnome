@@ -5,12 +5,12 @@ KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェク
 
 ## インストール
 
-[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、v0.1.0のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
+[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、v0.1.1のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
 
 ```bash
-sha256sum keepassxc-gnome_0.1.0-1_amd64.deb
+sha256sum keepassxc-gnome_0.1.1-1_amd64.deb
 # 表示された値をSHA256SUMS内の同名ファイルの値と照合
-sudo apt install ./keepassxc-gnome_0.1.0-1_amd64.deb
+sudo apt install ./keepassxc-gnome_0.1.1-1_amd64.deb
 ```
 
 アプリ一覧から「KeePassXC GNOME」を起動します。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。

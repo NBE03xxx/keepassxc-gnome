@@ -47,7 +47,11 @@ public:
     }
 private:
     void applyAccent() {
-        std::string css;
+        // rem follows GTK's configured font and accessibility text scale.
+        // Keep this outside the palette override so high contrast stays readable.
+        std::string css =
+            "window.kpxc-gnome { font-size: 1.2rem; }\n"
+            "window.kpxc-gnome .subtitle { font-size: 1em; }\n";
         // Keep the toolkit's own high-contrast rules, outlines and palette.
         if (!adw_style_manager_get_high_contrast(manager)) {
             if (settings && hasAccent && !adw_style_manager_get_system_supports_accent_colors(manager)) {
@@ -59,7 +63,7 @@ private:
                 adw_accent_color_to_rgba(accent, &background);
                 adw_accent_color_to_standalone_rgba(accent, adw_style_manager_get_dark(manager), &foreground);
                 auto* bg = gdk_rgba_to_string(&background); auto* fg = gdk_rgba_to_string(&foreground);
-                css = std::string("window.kpxc-gnome { --accent-bg-color: ") + bg +
+                css += std::string("window.kpxc-gnome { --accent-bg-color: ") + bg +
                     "; --accent-fg-color: white; --accent-color: " + fg + "; }\n";
                 g_free(bg); g_free(fg); g_free(value); g_type_class_unref(colors);
             }

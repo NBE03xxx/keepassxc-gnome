@@ -1493,7 +1493,7 @@ int main(int argc, char** argv)
     bind_textdomain_codeset("keepassxc-gnome", "UTF-8");
     textdomain("keepassxc-gnome");
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development 0.1.0" : "KeePassXC GNOME 0.1.0");
+        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development 0.1.1" : "KeePassXC GNOME 0.1.1");
         return 0;
     }
     if (argc == 2 && std::string(argv[1]) == "--language-check") {

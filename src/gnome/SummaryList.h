@@ -93,7 +93,7 @@ public:
         gtk_box_append(GTK_BOX(text), label); g_object_set_data(G_OBJECT(row), "summary-title", label);
         if (entry) {
             auto* subtitle = gtk_label_new(""); gtk_label_set_xalign(GTK_LABEL(subtitle), 0);
-            gtk_label_set_ellipsize(GTK_LABEL(subtitle), PANGO_ELLIPSIZE_END); gtk_widget_add_css_class(subtitle, "dim-label"); gtk_widget_add_css_class(subtitle, "caption");
+            gtk_label_set_ellipsize(GTK_LABEL(subtitle), PANGO_ELLIPSIZE_END); gtk_widget_add_css_class(subtitle, "dim-label");
             gtk_box_append(GTK_BOX(text), subtitle); g_object_set_data(G_OBJECT(row), "summary-subtitle", subtitle);
         }
         gtk_box_append(GTK_BOX(row), text); return row;

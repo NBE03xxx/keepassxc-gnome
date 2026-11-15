@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--version')
     parser.add_argument('--maintainer', help='Debian Maintainer name and email; required for --release')
     args = parser.parse_args()
-    args.version = args.version or ('0.1.0-1' if args.release else '0.1.0~dev1-1')
+    args.version = args.version or ('0.1.1-1' if args.release else '0.1.0~dev1-1')
     if args.release and not args.maintainer: parser.error('--release requires an explicitly supplied --maintainer')
     args.maintainer = args.maintainer or 'KeePassXC GNOME developers <noreply@localhost>'
     name = 'keepassxc-gnome' if args.release else NAME
@@ -75,7 +75,7 @@ def main():
         for document in docs:
             shutil.copyfile(ROOT / 'docs' / document, doc / document)
         shutil.copyfile(ROOT / 'README.md', doc / 'README.md')
-        change = 'Release 0.1.0 for Ubuntu 26.04.' if args.release else 'Private development validation build.'
+        change = 'Release 0.1.1 for Ubuntu 26.04.' if args.release else 'Private development validation build.'
         (doc / 'changelog.gz').write_bytes(gzip.compress((f'{name} ({args.version}) unstable; urgency=medium\n\n  * {change}\n').encode(), mtime=0))
         executables = [stage / 'usr/libexec/keepassxc-gnome' / name for name in BINARIES]
         for path in executables:
