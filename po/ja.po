@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: KeePassXC GNOME 0.1.1\n"
+"Project-Id-Version: KeePassXC GNOME 0.2.0\n"
 "PO-Revision-Date: 2026-11-12 23:00+0900\n"
 "Last-Translator: KeePassXC GNOME developers\n"
 "Language-Team: Japanese\n"
@@ -481,3 +481,39 @@ msgstr "保存をキャンセルしました。変更内容は開いたままで
 
 msgid "Unsaved database"
 msgstr "未保存のデータベース"
+
+msgid "Use a master password"
+msgstr "マスターパスワードを使用する"
+
+msgid "No key file selected"
+msgstr "キーファイルは選択されていません"
+
+msgid "Key file"
+msgstr "キーファイル"
+
+msgid "Choose key file"
+msgstr "キーファイルを選択"
+
+msgid "Remove key file"
+msgstr "キーファイルの選択を解除"
+
+msgid "For key-file-only unlock, turn off the master password. Key files are not remembered."
+msgstr "キーファイルのみで解除する場合は、マスターパスワードの使用をオフにしてください。キーファイルの選択は記憶されません。"
+
+msgid "Could not open the key file chooser. Try again."
+msgstr "キーファイルの選択画面を開けませんでした。もう一度お試しください。"
+
+msgid "Select a key file or enter a master password."
+msgstr "キーファイルを選択するか、マスターパスワードを入力してください。"
+
+msgid "Could not read a local regular key file, or the key file changed while being read."
+msgstr "ローカルの通常ファイルとしてキーファイルを読み取れないか、読み取り中にファイルが変更されました。"
+
+msgid "The key file is empty, invalid, unsupported, or has an invalid checksum."
+msgstr "キーファイルが空、不正な形式、未対応の形式、またはチェックサムが不正です。"
+
+msgid "The key file exceeds the 16 MiB read limit. The files were not changed."
+msgstr "キーファイルが読み取り上限の16 MiBを超えています。ファイルは変更していません。"
+
+msgid "Could not unlock the database. Check the password, key file, and database file."
+msgstr "データベースを解除できませんでした。パスワード、キーファイル、データベースのファイルを確認してください。"

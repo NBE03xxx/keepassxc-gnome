@@ -13,9 +13,14 @@ namespace {
 QJsonValue dispatch(CoreSession& session, const QString& op, const QJsonArray& a)
 {
     auto count = [&](int expected) { if (a.size() != expected) throw Error{}; };
-    if (op == "unlock" || op == "create") {
+    if (op == "unlock") {
+        count(4); if (!a[1].isBool()) throw Error{};
+        auto credentials = Sensitive::owned(new UnlockCredentials{a[1].toBool(), text(a[2]), text(a[3])});
+        return session.unlock(text(a[0]), *credentials);
+    }
+    if (op == "create") {
         count(2); const auto secret = Sensitive::owned(new std::string(text(a[1])));
-        return op == "unlock" ? session.unlock(text(a[0]), *secret) : session.create(text(a[0]), *secret);
+        return session.create(text(a[0]), *secret);
     }
     if (op == "groups") {
         count(0); QJsonArray rows;

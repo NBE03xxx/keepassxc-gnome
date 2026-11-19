@@ -38,7 +38,7 @@ void stop(Picker& p) {
 int main(int argc, char** argv) {
     if (argc != 8) return 2;
     const std::string mode(argv[1]);
-    if ((mode != "open" && mode != "save" && mode != "folder") || std::strlen(argv[2]) > 512
+    if ((mode != "open" && mode != "save" && mode != "folder" && mode != "keyfile") || std::strlen(argv[2]) > 512
         || std::strlen(argv[3]) > 4096 || (*argv[3] && !g_path_is_absolute(argv[3])) || std::strlen(argv[4]) > 255
         || std::strchr(argv[4], '/') || std::strlen(argv[5]) > 4096 || (*argv[5] && !g_str_has_prefix(argv[5], "wayland:"))) return 2;
     char* end = nullptr; const auto parent = std::strtoul(argv[6], &end, 10);
@@ -84,8 +84,11 @@ int main(int argc, char** argv) {
     if (mode != "folder") {
         GVariantBuilder filters; g_variant_builder_init(&filters, G_VARIANT_TYPE("a(sa(us))"));
         GVariantBuilder patterns; g_variant_builder_init(&patterns, G_VARIANT_TYPE("a(us)"));
-        g_variant_builder_add(&patterns, "(us)", 0U, "*.[kK][dD][bB][xX]");
-        g_variant_builder_add(&filters, "(sa(us))", "KeePass (*.kdbx)", &patterns);
+        if (mode == "keyfile") {
+            g_variant_builder_add(&patterns, "(us)", 0U, "*.[kK][eE][yY][xX]");
+            g_variant_builder_add(&patterns, "(us)", 0U, "*.[kK][eE][yY]");
+        } else g_variant_builder_add(&patterns, "(us)", 0U, "*.[kK][dD][bB][xX]");
+        g_variant_builder_add(&filters, "(sa(us))", mode == "keyfile" ? "KeePass (*.keyx, *.key)" : "KeePass (*.kdbx)", &patterns);
         g_variant_builder_init(&patterns, G_VARIANT_TYPE("a(us)")); g_variant_builder_add(&patterns, "(us)", 0U, "*");
         g_variant_builder_add(&filters, "(sa(us))", "*", &patterns);
         g_variant_builder_add(&options, "{sv}", "filters", g_variant_builder_end(&filters));

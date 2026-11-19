@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(KeePassXcGnome VERSION 0.1.1 LANGUAGES NONE)
+project(KeePassXcGnome VERSION 0.2.0 LANGUAGES NONE)
 
 option(KPXC_GNOME_DEVELOPMENT_UI "Show development qualification in the frontend" OFF)
 
@@ -21,7 +21,7 @@ ExternalProject_Add(upstream_reference_cli
         "-DKPXC_GNOME_SOURCE=${CMAKE_SOURCE_DIR}" -DCMAKE_SKIP_RPATH=ON
         -DKPXC_MINIMAL=ON -DKPXC_FEATURE_NETWORK=OFF -DKPXC_FEATURE_DOCS=OFF
         -DWITH_X11=OFF -DWITH_TESTS=OFF -DWITH_GUI_TESTS=OFF
-    BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target keepassxc-cli gnome_reference_fixture gnome_reference_stream_tests
+    BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target keepassxc-cli gnome_reference_fixture gnome_reference_stream_tests gnome_reference_keyfile_fixture
     BUILD_ALWAYS TRUE
     INSTALL_COMMAND "")
 ExternalProject_Add(gnome_native
@@ -42,10 +42,18 @@ ExternalProject_Add(gnome_native
     BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target keepassxc-gnome gnome_domain_tests gnome_compatibility_tests gnome_reader_finalization_tests
         gnome_upstream_cipher_tests gnome_upstream_hmac_tests gnome_upstream_hashed_tests
         gnome_upstream_kdbx3_tests gnome_upstream_kdbx4_tests gnome_xml_model_tests gnome_known_data_tests
-        gnome_process_domain_tests gnome_process_known_data_tests gnome_process_tests gnome_save_tests gnome_save_ui_probe gnome_lifetime_tests gnome_lifetime_ui_probe gnome_picker_tests gnome_polish_ui_probe gnome_stream_finalization_tests gnome_font_cache_tests gnome_recent_tests gnome_welcome_ui_probe gnome_public_welcome_ui_probe gnome_close_ui_probe gnome_default_keys_ui_probe
+        gnome_process_domain_tests gnome_process_known_data_tests gnome_process_tests gnome_save_tests gnome_save_ui_probe gnome_lifetime_tests gnome_lifetime_ui_probe gnome_picker_tests gnome_polish_ui_probe gnome_stream_finalization_tests gnome_font_cache_tests gnome_recent_tests gnome_welcome_ui_probe gnome_public_welcome_ui_probe gnome_close_ui_probe gnome_default_keys_ui_probe gnome_keyfile_tests gnome_keyfile_ui_probe
     BUILD_ALWAYS TRUE
     INSTALL_COMMAND "")
 enable_testing()
+add_test(NAME gnome_keyfile_tests COMMAND "${CMAKE_COMMAND}" -E env
+    "XDG_CONFIG_HOME=${CMAKE_BINARY_DIR}/keyfile-profile/config"
+    "XDG_CACHE_HOME=${CMAKE_BINARY_DIR}/keyfile-profile/cache"
+    "XDG_STATE_HOME=${CMAKE_BINARY_DIR}/keyfile-profile/state"
+    "${CMAKE_BINARY_DIR}/bin/gnome_keyfile_tests"
+    "${CMAKE_BINARY_DIR}/reference/gnome_reference_keyfile_fixture"
+    "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-worker")
+set_tests_properties(gnome_keyfile_tests PROPERTIES TIMEOUT 120)
 add_test(NAME gnome_domain_tests COMMAND "${CMAKE_COMMAND}" -E env
     "XDG_CONFIG_HOME=${CMAKE_BINARY_DIR}/test-profile/config"
     "XDG_CACHE_HOME=${CMAKE_BINARY_DIR}/test-profile/cache"

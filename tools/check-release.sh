@@ -9,7 +9,7 @@ release_args=()
 release_package=keepassxc-gnome-development
 if [[ ${KPXC_RELEASE_PUBLIC:-0} == 1 ]]; then
     : "${KPXC_RELEASE_MAINTAINER:?Set the public Debian Maintainer name and email}"
-    release_version=${KPXC_RELEASE_VERSION:-0.1.1-1}
+    release_version=${KPXC_RELEASE_VERSION:-0.2.0-1}
     release_package=keepassxc-gnome
     release_args=(--release --maintainer "$KPXC_RELEASE_MAINTAINER")
 fi
@@ -28,10 +28,11 @@ python3 tools/verify-upstream.py
 cmake -S . -B build -G Ninja -DKPXC_GNOME_DEVELOPMENT_UI=OFF
 CMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL:-4} cmake --build build
 bash tools/test-lifetime.sh --all
-for mode in '' --cancel --save --lifetime --unlock-keys --polish --guard --welcome --public-welcome --file-open --close --default-keys; do
+for mode in '' --cancel --save --lifetime --unlock-keys --polish --guard --welcome --public-welcome --file-open --close --default-keys --keyfile; do
     if [[ -z $mode ]]; then bash tools/test-ui.sh; else bash tools/test-ui.sh "$mode"; fi
 done
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --default-keys
+KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --keyfile
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --close
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --polish
 KPXC_UI_LANGUAGE=en bash tools/test-ui.sh --file-open
@@ -46,6 +47,7 @@ bash tools/test-reader-memory.sh --polish-ui
 bash tools/test-reader-memory.sh --welcome-ui
 bash tools/test-reader-memory.sh --close-ui
 bash tools/test-reader-memory.sh --default-keys-ui
+bash tools/test-reader-memory.sh --keyfile-ui
 python3 tools/build-deb.py --version "$release_version" --output "$release_output" "${release_args[@]}"
 bash tools/test-package.sh "$release_output/${release_base}_${release_arch}.deb"
 bash tools/test-source-build.sh "$release_output/${release_base}.source.tar.xz"

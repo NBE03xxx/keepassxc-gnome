@@ -25,6 +25,7 @@ public:
     ReadFailure lastReadFailure() const;
     QJsonObject enforcedLimits() const;
     bool unlock(const std::string& path, const std::string& password);
+    bool unlock(const std::string& path, const UnlockCredentials& credentials);
     bool create(const std::string& name, const std::string& password);
     bool enableRecovery(const std::string& privateFolder);
     std::string lastCheckpoint() const;

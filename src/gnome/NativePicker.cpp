@@ -63,7 +63,7 @@ struct NativePicker::Request : std::enable_shared_from_this<Request> {
     }
     void spawn(const char* parent) {
         if (finished || cancelled) { finish(Status::Cancelled); return; }
-        const char* mode = options.mode == Mode::Save ? "save" : options.mode == Mode::Folder ? "folder" : "open";
+        const char* mode = options.mode == Mode::Save ? "save" : options.mode == Mode::Folder ? "folder" : options.mode == Mode::KeyFile ? "keyfile" : "open";
         const auto pid = std::to_string(::getpid());
         const char* args[]{executable.c_str(), mode, options.title.c_str(), options.folder.c_str(), options.name.c_str(), parent, pid.c_str(), "v1", nullptr};
         process = g_subprocess_newv(args, GSubprocessFlags(G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE), nullptr);

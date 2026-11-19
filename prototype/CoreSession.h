@@ -4,6 +4,7 @@
 #include "SaveTypes.h"
 
 #include <memory>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -11,6 +12,19 @@ class Database;
 class Entry;
 
 enum class FixtureFormat { Kdbx3, Kdbx4, Kdbx41 };
+
+// Absence of the password factor differs from an explicitly empty password.
+struct UnlockCredentials
+{
+    bool usePassword = true;
+    std::string password;
+    std::string keyFile;
+    void clearSensitive() {
+        if (!password.empty()) ::explicit_bzero(password.data(), password.size());
+        if (!keyFile.empty()) ::explicit_bzero(keyFile.data(), keyFile.size());
+        password.clear(); keyFile.clear(); usePassword = false;
+    }
+};
 
 struct EntrySummary
 {
@@ -56,6 +70,7 @@ public:
     static bool createFixture(const std::string& path, FixtureFormat format);
 
     bool unlock(const std::string& path, const std::string& password, const ReadLimits& limits = {});
+    bool unlock(const std::string& path, const UnlockCredentials& credentials, const ReadLimits& limits = {});
     ReadFailure lastReadFailure() const { return readFailure; }
     ReadStats lastReadStats() const { return readStats; }
     bool create(const std::string& name, const std::string& password);

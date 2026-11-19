@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as 
     for path in stage.rglob('*'):
         if path.is_file() and not path.is_symlink(): require(not path.stat().st_mode & 0o6000, path.relative_to(stage).as_posix() + ' no set-ID')
     version_text = run([binary,'--version'])
-    require(version_text.startswith('KeePassXC GNOME') and (not release or version_text == 'KeePassXC GNOME 0.1.1'), 'staged executable version and public branding')
+    require(version_text.startswith('KeePassXC GNOME') and (not release or version_text == 'KeePassXC GNOME 0.2.0'), 'staged executable version and public branding')
     require(manifest.get('release_package', False) == release and (not release or manifest.get('development_ui') is False), 'release package cannot contain development UI')
     require(run([binary,'--language-check'],env=dict(os.environ, LC_ALL='ja_JP.UTF-8',LANGUAGE='ja')) == '準備完了', 'staged Japanese translation path')
     require(run([binary,'--language-check'],env=dict(os.environ, LC_ALL='C.UTF-8',LANGUAGE='de')) == 'Ready', 'staged English fallback')

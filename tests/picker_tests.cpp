@@ -7,6 +7,7 @@ int main(int argc, char** argv) {
         Portal portal(g_test_dbus_get_bus_address(test)); NativePicker picker(argc == 2 ? argv[1] : "");
         auto run = [&](Portal::Reply reply, NativePicker::Mode mode, NativePicker::Status expected) {
             portal.reply = reply; portal.save = mode == NativePicker::Mode::Save; portal.folder = mode == NativePicker::Mode::Folder;
+            portal.keyFile = mode == NativePicker::Mode::KeyFile;
             bool done = false;
             check(picker.choose(nullptr, {mode, "合成データを選択", "/tmp", portal.save ? "合成.kdbx" : ""}, [&](auto status, std::string path) {
                 check(status == expected, "picker outcome");
@@ -20,6 +21,7 @@ int main(int argc, char** argv) {
         run(Portal::Select, NativePicker::Mode::Open, NativePicker::Status::Selected);
         run(Portal::Select, NativePicker::Mode::Save, NativePicker::Status::Selected);
         run(Portal::Select, NativePicker::Mode::Folder, NativePicker::Status::Selected);
+        run(Portal::Select, NativePicker::Mode::KeyFile, NativePicker::Status::Selected);
         run(Portal::Cancel, NativePicker::Mode::Open, NativePicker::Status::Cancelled);
         for (auto reply : {Portal::Multiple, Portal::Remote, Portal::Oversized, Portal::BadHandle, Portal::Fail}) run(reply, NativePicker::Mode::Open, NativePicker::Status::Failed);
         portal.reply = Portal::Hold; portal.save = portal.folder = false; bool cancelled = false; const auto calls = portal.calls;

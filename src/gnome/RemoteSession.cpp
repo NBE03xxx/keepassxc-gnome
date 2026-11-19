@@ -199,7 +199,7 @@ struct RemoteSession::Impl
             if (!validTime(timer, epoch)) return {};
             const auto code = response["failure"].toInt(-1);
             if (response["v"].toInt(-1) != Version || response["id"].toDouble(-1) != double(serial)
-                || code < 0 || code > int(ReadFailure::RecoveryFailure) || !response.contains("value"))
+                || code < 0 || code > int(ReadFailure::KeyFileTooLarge) || !response.contains("value"))
                 return trip(ReadFailure::WorkerFailure);
             failure = ReadFailure(code);
             if (response.contains("checkpoint")) {
@@ -260,8 +260,13 @@ ReadFailure RemoteSession::fatalFailure() const { return impl->fatal; }
 QJsonObject RemoteSession::enforcedLimits() const { return impl->enforced; }
 bool RemoteSession::unlock(const std::string& path, const std::string& password)
 {
+    auto credentials = Sensitive::owned(new UnlockCredentials{true, password, {}});
+    return unlock(path, *credentials);
+}
+bool RemoteSession::unlock(const std::string& path, const UnlockCredentials& credentials)
+{
     lock();
-    impl->unlocked = impl->boolean("unlock", {str(path), str(password)}, false);
+    impl->unlocked = impl->boolean("unlock", {str(path), credentials.usePassword, str(credentials.password), str(credentials.keyFile)}, false);
     if (impl->unlocked) impl->recoverySource = impl->text("recoveryDirectory", {});
     return impl->unlocked;
 }

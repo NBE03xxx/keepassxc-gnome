@@ -6,7 +6,7 @@
 
 class NativePicker {
 public:
-    enum class Mode { Open, Save, Folder };
+    enum class Mode { Open, Save, Folder, KeyFile };
     enum class Status { Selected, Cancelled, Failed };
     struct Options { Mode mode; std::string title, folder, name; };
     using Done = std::function<void(Status, std::string)>;

@@ -5,7 +5,20 @@ source tools/dev-env.sh
 kpxc_ui="$PWD/build/ui-test"
 export KPXC_UI_APP="$PWD/build/bin/keepassxc-gnome"
 export KPXC_UI_SCRIPT="$PWD/tests/ui_smoke.py"
-if [[ ${1:-} == --orca ]]; then
+if [[ ${1:-} == --keyfile || ${1:-} == --keyfile-asan ]]; then
+    kpxc_ui="$PWD/build/ui-keyfile-${KPXC_UI_LANGUAGE:-ja}"
+    export KPXC_UI_SCRIPT="$PWD/tests/ui_keyfile.py" KPXC_UI_APP="$PWD/build/bin/gnome_keyfile_ui_probe"
+    export KPXC_UI_EXPECT_EXIT=1 KPXC_UI_KEYBOARD=1
+    if [[ $1 == --keyfile-asan ]]; then
+        kpxc_ui+="-asan"
+        mkdir -p "$kpxc_ui/bin" "$kpxc_ui/share"
+        cp build/reader-asan-output/bin/gnome_keyfile_ui_probe "$kpxc_ui/bin/"
+        cp build/bin/keepassxc-gnome-worker build/bin/keepassxc-gnome-picker "$kpxc_ui/bin/"
+        cp -a build/share/locale "$kpxc_ui/share/"
+        export KPXC_UI_APP="$kpxc_ui/bin/gnome_keyfile_ui_probe" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:strict_string_checks=1
+    fi
+    rm -f -- "$kpxc_ui/keyfile-phase"
+elif [[ ${1:-} == --orca ]]; then
     command -v orca >/dev/null || { echo 'Orca is required; consult before installing it.' >&2; exit 1; }
     kpxc_ui="${KPXC_UI_ORCA_ROOT:-$PWD/build/ui-orca-${KPXC_UI_LANGUAGE:-ja}}"
     export KPXC_UI_SCRIPT="$PWD/tests/ui_orca.py" KPXC_UI_EXPECT_EXIT=1 KPXC_UI_ORCA=1

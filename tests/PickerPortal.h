@@ -21,7 +21,7 @@ struct Portal {
     guint object;
     enum Reply { Select, Cancel, Multiple, Remote, Oversized, BadHandle, Hold, Fail } reply = Select;
     unsigned calls = 0, closes = 0;
-    bool save = false, folder = false, wayland = false;
+    bool save = false, folder = false, wayland = false, keyFile = false;
     unsigned parentHandles = 0;
     std::string request;
     std::string expectedTitle = "合成データを選択", expectedName = "合成.kdbx";
@@ -47,6 +47,13 @@ struct Portal {
             gboolean modal = FALSE, multiple = TRUE, directory = FALSE;
             check(g_variant_lookup(options, "modal", "b", &modal) && modal && g_variant_lookup(options, "multiple", "b", &multiple) && !multiple, "single modal chooser");
             g_variant_lookup(options, "directory", "b", &directory); check(bool(directory) == self.folder, "directory selection mode");
+            if (self.keyFile) {
+                auto* filters = g_variant_lookup_value(options, "filters", G_VARIANT_TYPE("a(sa(us))"));
+                check(filters, "key file filters provided");
+                auto* text = g_variant_print(filters, TRUE);
+                check(std::strstr(text, "*.keyx, *.key") && !std::strstr(text, "kdbx") && std::strstr(text, "'*'"), "key filter and arbitrary-file fallback");
+                g_free(text); g_variant_unref(filters);
+            }
             if (self.save) { const char* name; check(g_variant_lookup(options, "current_name", "&s", &name) && !std::strcmp(name, self.expectedName.c_str()), "save filename supplied"); }
             const char* token; check(g_variant_lookup(options, "handle_token", "&s", &token), "predictable request token");
             std::string unique(sender + 1); for (auto& c : unique) if (c == '.') c = '_';

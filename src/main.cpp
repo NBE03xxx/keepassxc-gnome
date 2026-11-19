@@ -132,6 +132,7 @@ class Window
     friend struct WelcomeUiProbe;
     friend struct CloseUiProbe;
     friend struct DefaultKeysUiProbe;
+    friend struct KeyFileUiProbe;
     friend struct SaveUiProbe; // Separate GUI regression executable; no production runtime hook.
 public:
     explicit Window(AdwApplication* application, std::string pickerExecutable = {})
@@ -615,6 +616,12 @@ private:
             message(tr("This database uses KDF settings this application cannot preserve or compute correctly. The file was not changed.")); break;
         case ReadFailure::IoError:
             message(tr("Could not read a local regular database file.")); break;
+        case ReadFailure::KeyFileIoError:
+            message(tr("Could not read a local regular key file, or the key file changed while being read.")); break;
+        case ReadFailure::InvalidKeyFile:
+            message(tr("The key file is empty, invalid, unsupported, or has an invalid checksum.")); break;
+        case ReadFailure::KeyFileTooLarge:
+            message(tr("The key file exceeds the 16 MiB read limit. The files were not changed.")); break;
         case ReadFailure::UnsupportedData:
             message(tr("This database contains data this application cannot safely preserve. The file was not changed.")); break;
         case ReadFailure::Timeout:
@@ -626,7 +633,7 @@ private:
         case ReadFailure::WorkerFailure:
             message(tr("The database worker stopped unexpectedly. The database is locked.")); break;
         default:
-            message(tr("Could not unlock the database. Check the password and file.")); break;
+            message(tr("Could not unlock the database. Check the password, key file, and database file.")); break;
         }
     }
 
@@ -806,6 +813,14 @@ private:
         auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(create ? tr("New database") : tr("Unlock database"), nullptr));
         if (!create) adw_alert_dialog_set_body(dialog, displayFilename(path).c_str());
         auto* fields = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+        struct KeyFileForm {
+            UnlockCredentials credentials;
+            bool active = true, choosing = false;
+            void clearSensitive() { credentials.clearSensitive(); }
+        };
+        auto form = Sensitive::owned(new KeyFileForm);
+        const std::weak_ptr<int> lifetime = alive;
+        const auto credentialsEpoch = generation;
         GtkEditable* name = nullptr;
         if (create) {
             name = GTK_EDITABLE(gtk_entry_new());
@@ -814,6 +829,12 @@ private:
             gtk_accessible_update_property(GTK_ACCESSIBLE(name), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Database name"), -1);
             gtk_editable_set_text(name, tr("Passwords"));
             gtk_box_append(GTK_BOX(fields), GTK_WIDGET(name));
+        }
+        GtkCheckButton* usePassword = nullptr;
+        if (!create) {
+            usePassword = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(tr("Use a master password")));
+            gtk_check_button_set_active(usePassword, TRUE);
+            gtk_box_append(GTK_BOX(fields), GTK_WIDGET(usePassword));
         }
         auto* password = GTK_EDITABLE(gtk_password_entry_new());
         secureEditable(GTK_WIDGET(password), true);
@@ -828,16 +849,37 @@ private:
             g_object_set(repeated, "placeholder-text", tr("Repeat master password"), "activates-default", TRUE, nullptr);
             gtk_box_append(GTK_BOX(fields), GTK_WIDGET(repeated));
         }
+        GtkWidget *keyLabel = nullptr, *chooseKey = nullptr, *removeKey = nullptr, *keyNotice = nullptr;
+        if (!create) {
+            keyLabel = gtk_label_new(tr("No key file selected"));
+            gtk_label_set_xalign(GTK_LABEL(keyLabel), 0);
+            gtk_label_set_ellipsize(GTK_LABEL(keyLabel), PANGO_ELLIPSIZE_MIDDLE);
+            gtk_label_set_max_width_chars(GTK_LABEL(keyLabel), 36);
+            gtk_accessible_update_property(GTK_ACCESSIBLE(keyLabel), GTK_ACCESSIBLE_PROPERTY_LABEL, tr("Key file"), -1);
+            gtk_box_append(GTK_BOX(fields), keyLabel);
+            auto* keyActions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+            chooseKey = gtk_button_new_with_label(tr("Choose key file"));
+            removeKey = gtk_button_new_with_label(tr("Remove key file"));
+            gtk_box_append(GTK_BOX(keyActions), chooseKey); gtk_box_append(GTK_BOX(keyActions), removeKey);
+            gtk_box_append(GTK_BOX(fields), keyActions);
+            keyNotice = gtk_label_new(tr("For key-file-only unlock, turn off the master password. Key files are not remembered."));
+            gtk_label_set_wrap(GTK_LABEL(keyNotice), TRUE); gtk_label_set_xalign(GTK_LABEL(keyNotice), 0);
+            gtk_box_append(GTK_BOX(fields), keyNotice);
+        }
         adw_alert_dialog_set_extra_child(dialog, fields);
         adw_alert_dialog_add_responses(dialog, "cancel", tr("Cancel"), "accept", create ? tr("Create") : tr("Unlock"), nullptr);
         adw_alert_dialog_set_response_appearance(dialog, "accept", ADW_RESPONSE_SUGGESTED);
         adw_alert_dialog_set_default_response(dialog, "accept");
         adw_alert_dialog_set_close_response(dialog, "cancel");
-        auto validCredentials = [dialog, name, password, repeated] {
+        auto validCredentials = [dialog, name, password, repeated, usePassword, form, chooseKey, removeKey] {
             const char* secret = gtk_editable_get_text(password);
-            const bool valid = *secret && (!name || *gtk_editable_get_text(name)) &&
-                (!repeated || !std::strcmp(secret, gtk_editable_get_text(repeated)));
+            const bool passwordFactor = !usePassword || gtk_check_button_get_active(usePassword);
+            const bool valid = form->active && !form->choosing &&
+                ((passwordFactor && *secret) || !form->credentials.keyFile.empty()) &&
+                (!name || *gtk_editable_get_text(name)) && (!repeated || !std::strcmp(secret, gtk_editable_get_text(repeated)));
             adw_alert_dialog_set_response_enabled(dialog, "accept", valid);
+            if (chooseKey) gtk_widget_set_sensitive(chooseKey, !form->choosing);
+            if (removeKey) gtk_widget_set_sensitive(removeKey, !form->choosing && !form->credentials.keyFile.empty());
         };
         for (auto* field : {name, password, repeated}) if (field) {
             auto* update = new std::function<void()>(validCredentials);
@@ -845,23 +887,86 @@ private:
                 (*static_cast<std::function<void()>*>(p))();
             }), update, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_DEFAULT);
         }
+        if (usePassword) {
+            auto* toggled = new std::function<void()>([usePassword, password, validCredentials] {
+                const bool enabled = gtk_check_button_get_active(usePassword);
+                if (!enabled) gtk_editable_set_text(password, "");
+                gtk_widget_set_sensitive(GTK_WIDGET(password), enabled); validCredentials();
+            });
+            g_signal_connect_data(usePassword, "toggled", G_CALLBACK(+[](GtkCheckButton*, gpointer p) {
+                (*static_cast<std::function<void()>*>(p))();
+            }), toggled, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_DEFAULT);
+            auto* choose = new std::function<void()>([this, lifetime, credentialsEpoch, form, keyLabel, keyNotice, validCredentials] {
+                if (lifetime.expired() || !form->active || credentialsEpoch != generation) return;
+                form->choosing = true; validCredentials();
+                const bool started = picker.choose(window, {NativePicker::Mode::KeyFile, tr("Choose key file"), {}, {}},
+                    [this, lifetime, credentialsEpoch, form, keyLabel, keyNotice, validCredentials](auto result, std::string selected) {
+                        if (lifetime.expired() || !form->active) { Sensitive::wipe(selected); return; }
+                        if (credentialsEpoch != generation) { Sensitive::wipe(selected); return; }
+                        form->choosing = false;
+                        if (result == NativePicker::Status::Selected) {
+                            Sensitive::wipe(form->credentials.keyFile); form->credentials.keyFile = std::move(selected);
+                            gtk_label_set_text(GTK_LABEL(keyLabel), displayFilename(form->credentials.keyFile).c_str());
+                        } else if (result == NativePicker::Status::Failed) {
+                            gtk_label_set_text(GTK_LABEL(keyNotice), tr("Could not open the key file chooser. Try again."));
+                        }
+                        validCredentials();
+                    });
+                if (!started) {
+                    form->choosing = false; validCredentials();
+                    gtk_label_set_text(GTK_LABEL(keyNotice), tr("Could not open the key file chooser. Try again."));
+                }
+            });
+            g_signal_connect_data(chooseKey, "clicked", G_CALLBACK(+[](GtkButton*, gpointer p) {
+                (*static_cast<std::function<void()>*>(p))();
+            }), choose, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_DEFAULT);
+            auto* remove = new std::function<void()>([form, keyLabel, validCredentials] {
+                if (!form->active) return;
+                Sensitive::wipe(form->credentials.keyFile); gtk_label_set_text(GTK_LABEL(keyLabel), tr("No key file selected")); validCredentials();
+            });
+            g_signal_connect_data(removeKey, "clicked", G_CALLBACK(+[](GtkButton*, gpointer p) {
+                (*static_cast<std::function<void()>*>(p))();
+            }), remove, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_DEFAULT);
+        }
         validCredentials();
-        const auto credentialsEpoch = generation;
-        auto* callback = new std::function<void(const char*)>([this, credentialsEpoch, create, path = std::move(path), name, password, repeated](const char* response) {
+        auto* closed = new std::function<void()>([this, lifetime, form, keyLabel, password, repeated] {
+            form->active = false; form->clearSensitive();
+            gtk_editable_set_text(password, ""); if (repeated) gtk_editable_set_text(repeated, "");
+            if (keyLabel) gtk_label_set_text(GTK_LABEL(keyLabel), "");
+            if (!lifetime.expired() && form->choosing) picker.cancel();
+        });
+        // Alert response is delivered after the dialog closes. Scrub after
+        // the response handler has copied the chosen factors for the worker.
+        g_signal_connect_data(dialog, "response", G_CALLBACK(+[](AdwAlertDialog*, const char*, gpointer p) {
+            (*static_cast<std::function<void()>*>(p))();
+        }), closed, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_AFTER);
+        g_object_weak_ref(G_OBJECT(dialog), +[](gpointer p, GObject*) {
+            std::unique_ptr<std::shared_ptr<KeyFileForm>> holder(static_cast<std::shared_ptr<KeyFileForm>*>(p));
+            (*holder)->active = false; (*holder)->clearSensitive();
+        }, new std::shared_ptr<KeyFileForm>(form));
+        auto* callback = new std::function<void(const char*)>([this, lifetime, credentialsEpoch, create, path = std::move(path), name, password, repeated, usePassword, form, keyLabel](const char* response) {
+            if (lifetime.expired()) return;
             if (credentialsEpoch != generation || !g_str_equal(response, "accept")) {
+                form->active = false;
                 gtk_editable_set_text(password, "");
                 if (repeated) gtk_editable_set_text(repeated, "");
+                form->clearSensitive();
+                if (keyLabel) gtk_label_set_text(GTK_LABEL(keyLabel), "");
+                if (form->choosing) picker.cancel();
                 return;
             }
             if (guard && guard->blocked()) { clearForm(GTK_WIDGET(password)); if (repeated) clearForm(GTK_WIDGET(repeated)); return; }
-            auto secret = Sensitive::owned(new std::string(gtk_editable_get_text(password)));
-            const bool valid = !secret->empty() && (!repeated || *secret == gtk_editable_get_text(repeated));
+            const bool passwordFactor = !usePassword || gtk_check_button_get_active(usePassword);
+            auto auth = Sensitive::owned(new UnlockCredentials{passwordFactor, passwordFactor ? gtk_editable_get_text(password) : "", form->credentials.keyFile});
+            const bool valid = !form->choosing && ((passwordFactor && !auth->password.empty()) || !auth->keyFile.empty())
+                && (!repeated || auth->password == gtk_editable_get_text(repeated));
+            form->clearSensitive();
             auto title = Sensitive::owned(new std::string(create ? gtk_editable_get_text(name) : ""));
             if (name) gtk_editable_set_text(name, "");
             gtk_editable_set_text(password, "");
             if (repeated) gtk_editable_set_text(repeated, "");
             if (!valid) {
-                message(tr("Enter matching, nonempty passwords."));
+                message(create ? tr("Enter matching, nonempty passwords.") : tr("Select a key file or enter a master password."));
                 return;
             }
             if (create && title->empty()) {
@@ -872,10 +977,10 @@ private:
             conceal();
             loading = true;
             const auto recoveryRoot = checkpointFolder;
-            submit([create, path, title, secret, recoveryRoot](RemoteSession& session) {
+            submit([create, path, title, auth, recoveryRoot](RemoteSession& session) {
                 session.lock();
-                bool ok = create ? session.create(*title, *secret) : session.unlock(path, *secret);
-                Sensitive::wipe(*secret);
+                bool ok = create ? session.create(*title, auth->password) : session.unlock(path, *auth);
+                auth->clearSensitive();
                 if (ok) ok = session.enableRecovery(recoveryRoot);
                 return std::tuple{ok, session.lastReadFailure(), !create && ok && session.hasSource(), session.recoveryDirectory()};
             }, [this, create, path](auto result) {
@@ -1493,7 +1598,7 @@ int main(int argc, char** argv)
     bind_textdomain_codeset("keepassxc-gnome", "UTF-8");
     textdomain("keepassxc-gnome");
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development 0.1.1" : "KeePassXC GNOME 0.1.1");
+        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development 0.2.0" : "KeePassXC GNOME 0.2.0");
         return 0;
     }
     if (argc == 2 && std::string(argv[1]) == "--language-check") {

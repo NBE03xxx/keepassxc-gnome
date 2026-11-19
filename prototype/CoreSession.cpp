@@ -20,6 +20,7 @@
 #include "keys/CompositeKey.h"
 #include "keys/PasswordKey.h"
 #include "gnome/ReadBudget.h"
+#include "gnome/KeyFile.h"
 
 #include <QDir>
 #include <QFile>
@@ -151,14 +152,20 @@ bool CoreSession::createFixture(const std::string& path, FixtureFormat format)
 
 bool CoreSession::unlock(const std::string& path, const std::string& password, const ReadLimits& limits)
 {
+    auto credentials = Sensitive::owned(new UnlockCredentials{true, password, {}});
+    return unlock(path, *credentials, limits);
+}
+
+bool CoreSession::unlock(const std::string& path, const UnlockCredentials& credentials, const ReadLimits& limits)
+{
     readStats = {};
     readFailure = ReadFailure::None;
-    if (database) {
+    if (database || (!credentials.usePassword && (!credentials.password.empty() || credentials.keyFile.empty()))) {
         readFailure = ReadFailure::InvalidInput;
         return false;
     }
     const ReadLimits maximum;
-    for (auto member : {&ReadLimits::fileBytes, &ReadLimits::headerBytes, &ReadLimits::headerFields,
+    for (auto member : {&ReadLimits::fileBytes, &ReadLimits::keyFileBytes, &ReadLimits::headerBytes, &ReadLimits::headerFields,
                         &ReadLimits::outerFieldBytes, &ReadLimits::dictionaryEntries, &ReadLimits::dictionaryNameBytes,
                         &ReadLimits::innerHeaderBytes, &ReadLimits::innerFields, &ReadLimits::innerFieldBytes,
                         &ReadLimits::blockBytes, &ReadLimits::expandedBytes, &ReadLimits::aesRounds,
@@ -229,11 +236,18 @@ bool CoreSession::unlock(const std::string& path, const std::string& password, c
     }
 
     context.sourceVersion = header.version();
+    auto key = QSharedPointer<CompositeKey>::create();
+    if (credentials.usePassword) key->addKey(QSharedPointer<PasswordKey>::create(QString::fromStdString(credentials.password)));
+    if (!credentials.keyFile.empty()) {
+        auto fileKey = QSharedPointer<FileKey>::create();
+        if (!GnomeKeyFile::load(credentials.keyFile, *fileKey, limits.keyFileBytes, readFailure)) return false;
+        key->addKey(fileKey);
+    }
     auto candidate = std::make_unique<Database>();
     candidate->setEmitModified(false);
     KeePass2Reader reader;
     snapshot.seek(0);
-    if (!reader.readDatabase(&snapshot, keyFor(password), candidate.get()) || readFailure != ReadFailure::None) {
+    if (!reader.readDatabase(&snapshot, key, candidate.get()) || readFailure != ReadFailure::None) {
         if (readFailure == ReadFailure::None) readFailure = ReadFailure::InvalidInput;
         return false;
     }

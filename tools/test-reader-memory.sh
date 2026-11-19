@@ -16,6 +16,11 @@ cmake -S upstream/keepassxc -B build/reader-asan -G Ninja \
     -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address -DCMAKE_SKIP_RPATH=ON \
     -DKPXC_MINIMAL=ON -DKPXC_FEATURE_NETWORK=OFF -DKPXC_FEATURE_DOCS=OFF \
     -DWITH_X11=OFF -DWITH_TESTS=ON -DWITH_GUI_TESTS=OFF
+if [[ ${1:-} == --keyfile-ui ]]; then
+    cmake --build build/reader-asan --target gnome_keyfile_ui_probe --parallel 4
+    bash tools/test-ui.sh --keyfile-asan
+    exit
+fi
 if [[ ${1:-} == --stream-only ]]; then
     cmake --build build/reader-asan --target gnome_stream_finalization_tests --parallel 4
     ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:strict_string_checks=1 \

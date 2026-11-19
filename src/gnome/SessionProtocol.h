@@ -15,7 +15,7 @@
 
 namespace SessionProtocol {
 inline constexpr quint32 MaximumFrame = 16U << 20;
-inline constexpr int Version = 4; // combined, protected group name/icon edits
+inline constexpr int Version = 5; // explicit password factor and optional key file
 struct Error : std::runtime_error { Error() : std::runtime_error("Invalid worker protocol") {} };
 struct SizeError : Error {};
 

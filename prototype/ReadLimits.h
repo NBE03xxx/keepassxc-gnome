@@ -3,13 +3,15 @@
 #include <cstdint>
 
 enum class ReadFailure { None, InvalidInput, ResourceLimit, UnsupportedKdf, IoError, UnsupportedData,
-                         Cancelled, Timeout, WorkerFailure, RecoveryFailure };
+                         Cancelled, Timeout, WorkerFailure, RecoveryFailure,
+                         KeyFileIoError, InvalidKeyFile, KeyFileTooLarge };
 
 // Provisional development policy, not KDBX format limits. No UI bypass is
 // provided. Tests may use smaller budgets to exercise exact boundaries.
 struct ReadLimits
 {
     std::uint64_t fileBytes = 128ULL << 20;
+    std::uint64_t keyFileBytes = 16ULL << 20;
     std::uint64_t headerBytes = 1ULL << 20;
     std::uint64_t headerFields = 64;
     std::uint64_t outerFieldBytes = 1ULL << 20;
