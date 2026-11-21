@@ -1,36 +1,9 @@
 # KeePassXC GNOME
 
-Ubuntu 26.04 / GNOME 50 / Wayland 向けのパスワードマネージャーです。
-KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェクトで、本家KeePassXCの公式版ではありません。
-
 ![KeePassXC GNOMEのライト（左）とダーク（右）の表示イメージ](docs/images/readme-light-dark.png)
 
-## Auto-Typeで日本語IMEを自動切り替え
-
-**日本語変換を有効にしたままAuto-Typeを使うには、同梱のGNOME Shell拡張を有効にしてください。** ショートカットを押すと一時的に直接入力へ切り替わり、入力後に元の入力ソースへ戻ります。
-
-1. 下の手順でdebをインストールし、GNOMEから一度ログアウトしてログインします。
-2. 端末で次のコマンドを一度実行します。
-
-   ```bash
-   gnome-extensions enable keepassxc-auto-type-ime@keepassxc-gnome
-   ```
-
-3. KeePassXC GNOMEで「自動入力」を準備します。「IMEは一時的に自動で切り替わります」と表示されたら、入力先でショートカットを押します。
-
-**動作確認済みの構成は、GNOME 50 Waylandの「日本語（Mozc）」と「日本語」の組み合わせです。** ほかのIMEでも、GNOMEが管理するIBus入力ソースと直接入力用の配列があれば切り替えられる設計ですが、動作は未検証です。「ウィンドウごとに異なる入力ソース」の設定はオフにします。拡張を使わない場合は、入力先を先に直接入力にします。[Auto-Typeの詳しい手順](docs/user-guide.md#自動入力auto-type)
-
-## インストール
-
-[v0.5.0の配布ページ](https://github.com/NBE03xxx/keepassxc-gnome/releases/tag/v0.5.0)から、debと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
-
-```bash
-sha256sum keepassxc-gnome_0.5.0-3_amd64.deb
-# 表示された値をSHA256SUMS内の同名ファイルの値と照合
-sudo apt install ./keepassxc-gnome_0.5.0-3_amd64.deb
-```
-
-アプリ一覧から「KeePassXC GNOME」を起動します。右上のデータベースメニューの「このアプリについて」でバージョンを確認できます。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
+Ubuntu 26.04 / GNOME 50 / Wayland 向けのパスワードマネージャーです。
+KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェクトで、本家KeePassXCの公式版ではありません。
 
 ## 主な機能
 
@@ -45,6 +18,33 @@ sudo apt install ./keepassxc-gnome_0.5.0-3_amd64.deb
 - 日本語・英語の自動選択、システムの明暗・アクセントカラーへの追従
 
 暗号処理とKDBXの読み書きにはKeePassXCの実装を使用します。編集画面のEnterで変更を確定し、メイン画面の保存でファイルに書き込みます。詳しくは[利用ガイド](docs/user-guide.md)を参照してください。
+
+## インストール
+
+[v0.5.0の配布ページ](https://github.com/NBE03xxx/keepassxc-gnome/releases/tag/v0.5.0)から、debと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
+
+```bash
+sha256sum keepassxc-gnome_0.5.0-3_amd64.deb
+# 表示された値をSHA256SUMS内の同名ファイルの値と照合
+sudo apt install ./keepassxc-gnome_0.5.0-3_amd64.deb
+```
+
+アプリ一覧から「KeePassXC GNOME」を起動します。右上のデータベースメニューの「このアプリについて」でバージョンを確認できます。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
+
+## Auto-Typeで日本語IMEを自動切り替え
+
+**日本語変換を有効にしたままAuto-Typeを使うには、同梱のGNOME Shell拡張を有効にしてください。** ショートカットを押すと一時的に直接入力へ切り替わり、入力後に元の入力ソースへ戻ります。
+
+1. [インストール](#インストール)の手順でdebを導入し、GNOMEから一度ログアウトしてログインします。
+2. 端末で次のコマンドを一度実行します。
+
+   ```bash
+   gnome-extensions enable keepassxc-auto-type-ime@keepassxc-gnome
+   ```
+
+3. KeePassXC GNOMEで「自動入力」を準備します。「IMEは一時的に自動で切り替わります」と表示されたら、入力先でショートカットを押します。
+
+**動作確認済みの構成は、GNOME 50 Waylandの「日本語（Mozc）」と「日本語」の組み合わせです。** ほかのIMEでも、GNOMEが管理するIBus入力ソースと直接入力用の配列があれば切り替えられる設計ですが、動作は未検証です。「ウィンドウごとに異なる入力ソース」の設定はオフにします。拡張を使わない場合は、入力先を先に直接入力にします。[Auto-Typeの詳しい手順](docs/user-guide.md#自動入力auto-type)
 
 ## 制限
 
