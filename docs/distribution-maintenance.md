@@ -1,10 +1,12 @@
 # 配布物と継続保守
 
-## 公開版v0.3.0の配布
+## 公開版v0.4.0の配布
 
-Ubuntu 26.04（amd64）用の公開パッケージ名は `keepassxc-gnome`。本体とworker、picker、Chrome連携用のNative Messagingホストを `/usr/libexec/keepassxc-gnome/` に配置する。Chromeへの登録は利用者がアプリで連携を有効にしたときに作られる。[利用ガイド](user-guide.md#ブラウザー連携)。
+Ubuntu 26.04（amd64）用の公開パッケージ名は `keepassxc-gnome`。本体、worker、picker、Chrome連携用のNative Messagingホスト、Auto-Typeの補助プログラムを `/usr/libexec/keepassxc-gnome/` に配置する。Chromeへの登録は利用者がアプリで連携を有効にしたときに作られる。[利用ガイド](user-guide.md#ブラウザー連携)。
 
-同じビルドのdeb、完全対応ソース、ビルドmanifest、SHA256SUMSをGitHub Releaseで配布する。v0.3.0の公開用debは未署名。公開前にUbuntu 26.04.1 VMでの新規導入・更新・削除と、T16での導入・操作を確認した。[v0.3.0の検証記録](phase3-results.md#v030のバージョン表示とt16導入2026-11-21)。
+IMEの一時切り替え用の拡張は `/usr/share/gnome-shell/extensions/keepassxc-auto-type-ime@keepassxc-gnome/` に同梱する。`extension.js` と `metadata.json` のSHA-256をビルドmanifestに記録する。GNOMEへの再ログイン後、利用者が拡張を有効にする。[READMEの有効化手順](../README.md#auto-typeで日本語imeを自動切り替え)。
+
+同じビルドのdeb、完全対応ソース、ビルドmanifest、SHA256SUMSをGitHub Releaseで配布する。公開用debは未署名。Ubuntu 26.04.1 VMで拡張同梱版の導入・更新・削除を確認し、T16には公開用debを導入してAuto-TypeとMozcの復元を確認した。[v0.4.0の検証記録](phase3-results.md#拡張同梱版のt16確認と案内調整2026-11-21)。
 
 ## 手順6の開発記録
 
