@@ -1,12 +1,12 @@
 # 配布物と継続保守
 
-## 公開版v0.4.0の配布
+## 公開版v0.5.0の配布
 
 Ubuntu 26.04（amd64）用の公開パッケージ名は `keepassxc-gnome`。本体、worker、picker、Chrome連携用のNative Messagingホスト、Auto-Typeの補助プログラムを `/usr/libexec/keepassxc-gnome/` に配置する。Chromeへの登録は利用者がアプリで連携を有効にしたときに作られる。[利用ガイド](user-guide.md#ブラウザー連携)。
 
 IMEの一時切り替え用の拡張は `/usr/share/gnome-shell/extensions/keepassxc-auto-type-ime@keepassxc-gnome/` に同梱する。`extension.js` と `metadata.json` のSHA-256をビルドmanifestに記録する。GNOMEへの再ログイン後、利用者が拡張を有効にする。[READMEの有効化手順](../README.md#auto-typeで日本語imeを自動切り替え)。
 
-同じビルドのdeb、完全対応ソース、ビルドmanifest、SHA256SUMSをGitHub Releaseで配布する。公開用debは未署名。Ubuntu 26.04.1 VMで拡張同梱版の導入・更新・削除を確認し、T16には公開用debを導入してAuto-TypeとMozcの復元を確認した。[v0.4.0の検証記録](phase3-results.md#拡張同梱版のt16確認と案内調整2026-11-21)。
+同じビルドのdeb、完全対応ソース、ビルドmanifest、SHA256SUMSをGitHub Releaseで配布する。v0.5.0の公開debは `keepassxc-gnome_0.5.0-3_amd64.deb`。配布物は未署名。公開パッケージにはT16で操作確認済みの実行ファイルを収録する。[TOTPの検証記録](phase3-results.md#totpの読みやすさとボタン配置2026-11-21)
 
 ## 手順6の開発記録
 
@@ -14,7 +14,7 @@ IMEの一時切り替え用の拡張は `/usr/share/gnome-shell/extensions/keepa
 
 **2026-11-14の現在地。** この文書の試験件数・dev1の結果は手順6時点の記録。後のdev4の画面確認に続き、[dev5の梱包とVM検証](session-guard-candidate-validation.md)、[実機更新・5分経過後のOrca確認](dev5-physical-orca.md)を今回の操作範囲で完了した。初回のqzv読み上げの入力条件は不明で、未解決の観測として残す。GUIの生LSanと長時間の増加基準も[公開前レビュー](pre-release-review.md)で区別している。
 
-## 配布構成
+### 手順6時点の開発版の配布構成
 
 パッケージ名は `keepassxc-gnome-development`。本家 `keepassxc` を置き換える Provides / Conflicts / Replaces、MIME の既定変更、サービス登録、ユーザー設定を変更する maintainer script は持たせない。
 
@@ -29,7 +29,7 @@ IMEの一時切り替え用の拡張は `/usr/share/gnome-shell/extensions/keepa
 
 `packaging/Install.cmake` は GTK アプリのファイルのみをステージする。上流の install ターゲットは呼ばない。`src/gnome/RuntimePaths.h` は開発ビルドとインストール済みの配置を区別して翻訳を探す。ワーカーは本体と同じ私有ディレクトリから起動する。共有ライブラリは同梱せず、Ubuntu パッケージへ依存する。
 
-## 作成
+## ビルドと梱包
 
 新しい依存の導入は AGENTS.md に従って事前に相談する。通常環境で `apt install` してビルドすることは必須ではなく、既存のプロジェクト内 prefix を使える。
 
@@ -38,14 +38,14 @@ source tools/dev-env.sh
 cmake -S . -B build -G Ninja
 CMAKE_BUILD_PARALLEL_LEVEL=4 cmake --build build
 bash tools/test-lifetime.sh --all
-python3 tools/build-deb.py
+python3 tools/build-deb.py --release --version 0.5.0-3 --maintainer 'NBE03xxx <NBE03247@nifty.com>' --output build/dist/v0.5.0
 ```
 
-成果物は `build/dist/` の deb、完全な対応ソース `*.source.tar.xz`、manifest、`SHA256SUMS`。通常環境へのインストールは行わない。インストール・更新・削除の最初の検証先は Ubuntu 26.04 VM とする（[VM 手順](vm-package-test.md)）。
+成果物は出力先のdeb、完全な対応ソース `*.source.tar.xz`、manifest、`SHA256SUMS`。インストール・更新・削除はまずUbuntu 26.04 VMで検証する。[VM手順](vm-package-test.md)
 
 ビルドがこのプロジェクトと固定した上流のものか CMake cache で照合し、梱包前に再ビルドする。異なる候補 checkout のバイナリーや変更前の実行ファイルを、現在のソースとして梱包しない（`tools/build-deb.py:28`）。
 
-依存は `dpkg-shlibdeps` で実際の3実行ファイルから求める。ホストへ導入していない展開済みライブラリは、SHA-256 を照合した元の Ubuntu deb の `shlibs` を使う。不明な依存を無視するオプションは使わない。配色の GNOME schema と FileChooser の portal / GNOME backend も実行時依存に含める。
+依存は `dpkg-shlibdeps` で実際の5実行ファイルから求める。ホストへ導入していない展開済みライブラリは、SHA-256 を照合した元の Ubuntu deb の `shlibs` を使う。不明な依存を無視するオプションは使わない。配色の GNOME schema と FileChooser の portal / GNOME backend も実行時依存に含める。
 
 manifest は固定した上流・完全なツリーのハッシュ・独自パッチ・対応ソース・strip 後の実行ファイル・開発用 deb・ツールの版を記録する。設定・キャッシュ・実 DB・`.git` は配布物に含めない。出力先の既存成果物を同じ版で上書きできるため、受入済み成果物は別の保管先へ移し、再発行時は版を上げる。
 
@@ -61,7 +61,7 @@ manifest は固定した上流・完全なツリーのハッシュ・独自パ�
 
 独立コードの既存方針は GPL version 2 または version 3。元のソースヘッダーと本家 `COPYING` / `LICENSE.*` を保持し、リンクされる第三者の表記も配布する。QtIOCompressor の LGPL-2.1 / GPL-3 の選択肢と例外、埋め込まれる資源の表記も対象とする。動的リンクの Ubuntu ライブラリは同梱しない。
 
-deb と**同じ内容の対応ソースを同時に配布**する。本家へのリンクだけでは、この GTK フロントエンドとパッチの対応ソースにならない。パッケージ中の `build-manifest.json` と外部 `SHA256SUMS` で照合する。公開する場合は実際の保守連絡先、独立した公開 URL、著作権表示の確認、署名鍵の管理者を確定してから、版付きタグ・チェックサムへの署名を行う。現在の `noreply@localhost` は内部検証用であり公開窓口ではない。アップロードや署名鍵の生成は自動で行わない。
+debと**同じ内容の対応ソースを同時に配布**する。ソースにはGTKフロントエンド、パッチ、固定したKeePassXCのソースを含める。パッケージ中の `build-manifest.json` と外部 `SHA256SUMS` で照合する。公開用パッケージは保守連絡先、公開URL、著作権表示を確認する。署名付き配布を行う場合は、署名鍵の管理者を確定してから版付きタグとチェックサムに署名する。
 
 ## 継続保守
 
@@ -79,7 +79,7 @@ deb と**同じ内容の対応ソースを同時に配布**する。本家への
 
 ## 残る受入条件
 
-VM への実インストール、実機での最終確認、GUI 全体の LSan 判定は別の合格条件。AppStream の公開 URL・実際の保守窓口・公開署名・APT repository のホスティングは、現在の非公開検証用 deb の外側に残す。Flatpak / Snap は対象外。
+VMでの導入試験、実機での操作確認、GUI全体のLSan判定は個別に記録する。v0.5.0の配布先はGitHub Release。GUI全体のLSan判定と長時間・反復操作でのメモリ増加は未解決。[公開前レビュー](pre-release-review.md)
 
 ## 本家の確認記録（2026-11-13）
 
@@ -91,7 +91,7 @@ VM への実インストール、実機での最終確認、GUI 全体の LSan �
 
 `bash tools/check-release.sh` で source 検証、ビルド、CTest、GUI、ASan、梱包、展開試験、対応ソースの再ビルド、同一入力の梱包一致を順に実行する。個別の対応ソースの再ビルドは `bash tools/test-source-build.sh`、梱包一致は `bash tools/test-reproducibility.sh`。いずれもパッケージのインストール・公開・署名・push を行わない。GUI と私有 D-Bus が利用できる、合成データ専用の Ubuntu 26.04 runner を使う。個人のパスワード環境を持つ runner で、外部 PR の未審査コードを自動実行しない。
 
-未公開リポジトリのため、外部サービス上の CI job は登録していない。将来の GitHub / Gitea 接続ではこの入口を再利用し、使用する runner・依存・ログ保存期間を明示する。成功ログに加え、VM の受入記録と未完了事項をリリースごとに保持する。
+CIを構成する場合はこの入口を再利用し、使用する runner・依存・ログ保存期間を明示する。成功ログに加え、VM の受入記録と未完了事項をリリースごとに保持する。
 
 ## 今回の確認結果
 

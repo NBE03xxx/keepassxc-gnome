@@ -21,4 +21,4 @@ sudo apt install ./keepassxc-gnome_0.1.0-1_amd64.deb
 対応ソースとビルドmanifestも添付します。配布物は未署名です。詳細はREADME、利用ガイド、SECURITY.mdを参照してください。
 
 
-キーファイルでの解除、ブラウザー連携、Auto-Type、TOTPは今後の実装予定です。詳しくは[READMEのロードマップ](https://github.com/NBE03xxx/keepassxc-gnome#ロードマップ)を参照してください。
+v0.1.0の時点では、キーファイルでの解除、ブラウザー連携、Auto-Type、TOTPを今後の実装予定としていました。[v0.1.0のREADME](https://github.com/NBE03xxx/keepassxc-gnome/blob/v0.1.0/README.md#ロードマップ)

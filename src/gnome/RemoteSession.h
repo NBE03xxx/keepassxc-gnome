@@ -59,6 +59,9 @@ public:
     std::string addEntry(const std::string& group, const EntryDetails& details);
     bool updateEntry(const EntryDetails& details);
     bool removeEntry(const std::string& id);
+    TotpCode totpCode(const std::string& id) const;
+    bool setTotp(const std::string& id, const std::string& input);
+    bool removeTotp(const std::string& id);
     bool rename(const std::string& id, const std::string& title);
     bool saveCopy(const std::string& path);
     bool saveAs(const std::string& path);

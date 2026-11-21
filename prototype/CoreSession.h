@@ -4,8 +4,9 @@
 #include "ReadLimits.h"
 #include "SaveTypes.h"
 
-#include <memory>
+#include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -63,6 +64,25 @@ struct EntryDetails
     bool customIcon = false;
 };
 
+struct TotpCode
+{
+    enum class Status { Unavailable, NotConfigured, Invalid, Ready };
+    static constexpr int MaximumInputBytes = 4096;
+    static constexpr int MaximumPeriodSeconds = 86400;
+    static constexpr int MaximumDigits = 9;
+
+    Status status = Status::Unavailable;
+    std::string value = {};
+    std::int64_t startsAtMs = 0;
+    std::int64_t expiresAtMs = 0;
+
+    void clearSensitive()
+    {
+        if (!value.empty()) ::explicit_bzero(value.data(), value.size());
+        value.clear();
+    }
+};
+
 class CoreSession
 {
 public:
@@ -92,6 +112,9 @@ public:
     bool entry(const std::string& id, EntryDetails& details) const;
     bool updateEntry(const EntryDetails& details);
     bool removeEntry(const std::string& id);
+    TotpCode totpCode(const std::string& id) const;
+    bool setTotp(const std::string& id, const std::string& input);
+    bool removeTotp(const std::string& id);
     static std::string generatePassword(unsigned length = 24);
     bool rename(const std::string& id, const std::string& title);
     bool saveCopy(const std::string& path);

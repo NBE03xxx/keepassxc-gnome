@@ -34,7 +34,7 @@ def main():
     parser.add_argument('--version')
     parser.add_argument('--maintainer', help='Debian Maintainer name and email; required for --release')
     args = parser.parse_args()
-    args.version = args.version or ('0.4.0-1' if args.release else '0.1.0~dev1-1')
+    args.version = args.version or ('0.5.0-3' if args.release else '0.1.0~dev1-1')
     if args.release and not args.maintainer: parser.error('--release requires an explicitly supplied --maintainer')
     args.maintainer = args.maintainer or 'KeePassXC GNOME developers <noreply@localhost>'
     name = 'keepassxc-gnome' if args.release else NAME

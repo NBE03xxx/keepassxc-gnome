@@ -7,7 +7,7 @@ KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェク
 
 **日本語変換を有効にしたままAuto-Typeを使うには、同梱のGNOME Shell拡張を有効にしてください。** ショートカットを押すと一時的に直接入力へ切り替わり、入力後に元の入力ソースへ戻ります。
 
-1. 下の手順でv0.4.0以降のdebをインストールし、GNOMEから一度ログアウトしてログインします。
+1. 下の手順でdebをインストールし、GNOMEから一度ログアウトしてログインします。
 2. 端末で次のコマンドを一度実行します。
 
    ```bash
@@ -20,12 +20,12 @@ KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェク
 
 ## インストール
 
-[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、同じ版のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
+[v0.5.0の配布ページ](https://github.com/NBE03xxx/keepassxc-gnome/releases/tag/v0.5.0)から、debと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
 
 ```bash
-sha256sum keepassxc-gnome_0.4.0-1_amd64.deb
+sha256sum keepassxc-gnome_0.5.0-3_amd64.deb
 # 表示された値をSHA256SUMS内の同名ファイルの値と照合
-sudo apt install ./keepassxc-gnome_0.4.0-1_amd64.deb
+sudo apt install ./keepassxc-gnome_0.5.0-3_amd64.deb
 ```
 
 アプリ一覧から「KeePassXC GNOME」を起動します。右上のデータベースメニューの「このアプリについて」でバージョンを確認できます。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
@@ -38,6 +38,7 @@ sudo apt install ./keepassxc-gnome_0.4.0-1_amd64.deb
 - GNOME Waylandで、選択したエントリーをフォーカス中の入力先へ自動入力
 - グループとエントリーの管理、検索、プレビュー、アイコン選択
 - パスワード生成、ユーザー名・パスワードのコピー
+- エントリーごとのTOTP設定、認証コードと残り時間の表示、自動更新。[TOTPの使い方](docs/user-guide.md#totp)
 - 未保存表示、保存時のバックアップ、未保存の変更の復旧
 - 日本語・英語の自動選択、システムの明暗・アクセントカラーへの追従
 
@@ -51,15 +52,7 @@ sudo apt install ./keepassxc-gnome_0.4.0-1_amd64.deb
 
 自動入力は、GNOMEでキーボード操作を許可してから、利用者が入力先でショートカットを押したときに動作します。対応する命令とキー配列には制限があります。[自動入力の手順](docs/user-guide.md#自動入力auto-type)を参照してください。
 
-YubiKeyでの解除、TOTPのコード生成・表示は未対応です。既存のTOTP設定は保持します。キーファイルの生成・新規DBへの設定・既存DBの鍵変更には本家KeePassXCを使用してください。保持できない形式・設定のデータは理由を示して読み込みを拒否します。既存のカスタムアイコン画像は保持しますが、画面では汎用アイコンを表示します。
-
-## ロードマップ
-
-今後、以下の機能を段階的に実装する予定です。
-
-- TOTPの設定・認証コードの生成と表示
-
-検証用デバイスがないため、YubiKey対応は現時点の実装予定に含めません。
+YubiKeyでの解除は未対応です。キーファイルの生成・新規DBへの設定・既存DBの鍵変更には本家KeePassXCを使用してください。保持できない形式・設定のデータは理由を示して読み込みを拒否します。既存のカスタムアイコン画像は保持しますが、画面では汎用アイコンを表示します。
 
 ## ソースからのビルド
 

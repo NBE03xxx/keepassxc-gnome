@@ -39,6 +39,7 @@ target_include_directories(gnome_safe_save PUBLIC "${KPXC_GNOME_SOURCE}/src" "${
 target_link_libraries(gnome_safe_save PUBLIC Qt6::Core)
 add_library(gnome_session STATIC
     "${KPXC_GNOME_SOURCE}/prototype/CoreSession.cpp"
+    "${KPXC_GNOME_SOURCE}/prototype/EntryTotp.cpp"
     "${KPXC_GNOME_SOURCE}/prototype/AutoTypeSequence.cpp"
     "${KPXC_GNOME_SOURCE}/prototype/BrowserAccess.cpp")
 target_include_directories(gnome_session PUBLIC "${KPXC_GNOME_SOURCE}/prototype")
@@ -123,6 +124,12 @@ target_include_directories(gnome_auto_type_tests SYSTEM PRIVATE "${CMAKE_SOURCE_
 target_link_libraries(gnome_auto_type_tests PRIVATE gnome_session gnome_remote)
 set_target_properties(gnome_auto_type_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 add_dependencies(gnome_auto_type_tests keepassxc-gnome-worker)
+
+add_executable(gnome_totp_tests "${KPXC_GNOME_SOURCE}/tests/totp_tests.cpp")
+target_include_directories(gnome_totp_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
+target_link_libraries(gnome_totp_tests PRIVATE gnome_session gnome_remote)
+set_target_properties(gnome_totp_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
+add_dependencies(gnome_totp_tests keepassxc-gnome-worker)
 
 target_include_directories(gnome_domain_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
 target_link_libraries(gnome_domain_tests PRIVATE gnome_session)

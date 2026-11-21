@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: KeePassXC GNOME 0.4.0\n"
+"Project-Id-Version: KeePassXC GNOME 0.5.0\n"
 "PO-Revision-Date: 2026-11-12 23:00+0900\n"
 "Last-Translator: KeePassXC GNOME developers\n"
 "Language-Team: Japanese\n"
@@ -646,3 +646,47 @@ msgstr "タイトルなしのエントリー"
 #, qt-format
 msgid "Allow %1"
 msgstr "%1 の入力を許可"
+
+msgid "TOTP"
+msgstr "TOTP"
+
+#, c-format
+msgid "%d second remaining"
+msgid_plural "%d seconds remaining"
+msgstr[0] "残り %d 秒"
+
+msgid "Refreshing the code…"
+msgstr "認証コードを更新しています…"
+
+msgid "This entry is unavailable."
+msgstr "このエントリーは利用できません。"
+
+msgid "TOTP is not set up for this entry."
+msgstr "このエントリーにはTOTPが設定されていません。"
+
+msgid "The saved TOTP settings cannot generate a code."
+msgstr "保存されたTOTP設定では認証コードを生成できません。"
+
+msgid "Enter a valid Base32 key or an otpauth TOTP URI."
+msgstr "有効なBase32キーか、TOTP用のotpauth URIを入力してください。"
+
+msgid "Could not remove the TOTP settings."
+msgstr "TOTP設定を削除できませんでした。"
+
+msgid "Authentication code"
+msgstr "認証コード"
+
+msgid "TOTP settings"
+msgstr "TOTP設定"
+
+msgid "Enter a new Base32 key or otpauth TOTP URI to replace the current setup."
+msgstr "Base32キーまたはTOTP用のotpauth URIを入力してください。保存すると現在の設定が置き換わります。"
+
+msgid "TOTP key or URI"
+msgstr "TOTPキーまたはURI"
+
+msgid "Save TOTP settings"
+msgstr "TOTP設定を保存"
+
+msgid "Remove TOTP"
+msgstr "TOTPを削除"

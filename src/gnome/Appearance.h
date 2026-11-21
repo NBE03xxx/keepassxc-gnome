@@ -51,7 +51,8 @@ private:
         // Keep this outside the palette override so high contrast stays readable.
         std::string css =
             "window.kpxc-gnome { font-size: 1.2rem; }\n"
-            "window.kpxc-gnome .subtitle { font-size: 1em; }\n";
+            "window.kpxc-gnome .subtitle { font-size: 1em; }\n"
+            "window.kpxc-gnome label.kpxc-totp-code { font-size: 3rem; font-weight: 800; }\n";
         // Keep the toolkit's own high-contrast rules, outlines and palette.
         if (!adw_style_manager_get_high_contrast(manager)) {
             if (settings && hasAccent && !adw_style_manager_get_system_supports_accent_colors(manager)) {

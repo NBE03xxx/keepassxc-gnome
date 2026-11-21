@@ -394,6 +394,18 @@ bool RemoteSession::removeGroup(const std::string& id) { return impl->boolean("r
 std::string RemoteSession::addEntry(const std::string& group, const EntryDetails& value) { return impl->text("addEntry", {str(group), encode(value)}); }
 bool RemoteSession::updateEntry(const EntryDetails& value) { return impl->boolean("updateEntry", {encode(value)}); }
 bool RemoteSession::removeEntry(const std::string& id) { return impl->boolean("removeEntry", {str(id)}); }
+TotpCode RemoteSession::totpCode(const std::string& id) const
+{
+    const auto value = impl->call("totpCode", {str(id)});
+    if (impl->fatal != ReadFailure::None || !impl->unlocked) return {};
+    try { return SessionProtocol::totpCode(value); }
+    catch (const Error&) { impl->trip(ReadFailure::WorkerFailure); return {}; }
+}
+bool RemoteSession::setTotp(const std::string& id, const std::string& input)
+{
+    return input.size() <= TotpCode::MaximumInputBytes && impl->boolean("setTotp", {str(id), str(input)});
+}
+bool RemoteSession::removeTotp(const std::string& id) { return impl->boolean("removeTotp", {str(id)}); }
 bool RemoteSession::rename(const std::string& id, const std::string& title) { return impl->boolean("rename", {str(id), str(title)}); }
 bool RemoteSession::saveCopy(const std::string& path) { return impl->persist("saveCopy", {str(path)}, path); }
 bool RemoteSession::saveAs(const std::string& path) { return impl->persist("saveAs", {str(path)}, path); }

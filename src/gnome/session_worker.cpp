@@ -46,6 +46,17 @@ QJsonValue dispatch(CoreSession& session, const QString& op, const QJsonArray& a
     if (op == "addEntry") { count(2); auto value = Sensitive::owned(new EntryDetails(details(a[1]))); return str(session.addEntry(text(a[0]), *value)); }
     if (op == "updateEntry") { count(1); auto value = Sensitive::owned(new EntryDetails(details(a[0]))); return session.updateEntry(*value); }
     if (op == "removeEntry") { count(1); return session.removeEntry(text(a[0])); }
+    if (op == "totpCode") {
+        count(1);
+        const auto value = Sensitive::owned(new TotpCode(session.totpCode(text(a[0]))));
+        return encode(*value);
+    }
+    if (op == "setTotp") {
+        count(2);
+        const auto secret = Sensitive::owned(new std::string(text(a[1])));
+        return session.setTotp(text(a[0]), *secret);
+    }
+    if (op == "removeTotp") { count(1); return session.removeTotp(text(a[0])); }
     if (op == "rename") { count(2); return session.rename(text(a[0]), text(a[1])); }
     if (op == "saveCopy") { count(1); session.saveCopy(text(a[0])); return encode(session.lastSaveResult()); }
     if (op == "saveAs") { count(1); session.saveAs(text(a[0])); return encode(session.lastSaveResult()); }

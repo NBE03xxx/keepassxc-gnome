@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(KeePassXcGnome VERSION 0.4.0 LANGUAGES NONE)
+project(KeePassXcGnome VERSION 0.5.0 LANGUAGES NONE)
 
 option(KPXC_GNOME_DEVELOPMENT_UI "Show development qualification in the frontend" OFF)
 
@@ -41,7 +41,7 @@ ExternalProject_Add(gnome_native
         -DCMAKE_SKIP_RPATH=ON -DKPXC_MINIMAL=ON -DKPXC_FEATURE_NETWORK=OFF
         -DKPXC_FEATURE_DOCS=OFF -DWITH_X11=OFF -DWITH_TESTS=ON -DWITH_GUI_TESTS=OFF
     BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target keepassxc-gnome keepassxc-gnome-auto-type gnome_domain_tests gnome_compatibility_tests gnome_reader_finalization_tests
-        gnome_upstream_cipher_tests gnome_upstream_hmac_tests gnome_upstream_hashed_tests gnome_browser_pairing_tests gnome_auto_type_tests
+        gnome_upstream_cipher_tests gnome_upstream_hmac_tests gnome_upstream_hashed_tests gnome_browser_pairing_tests gnome_auto_type_tests gnome_totp_tests
         gnome_upstream_kdbx3_tests gnome_upstream_kdbx4_tests gnome_xml_model_tests gnome_known_data_tests
         gnome_process_domain_tests gnome_process_known_data_tests gnome_process_tests gnome_save_tests gnome_save_ui_probe gnome_lifetime_tests gnome_lifetime_ui_probe gnome_picker_tests gnome_polish_ui_probe gnome_stream_finalization_tests gnome_font_cache_tests gnome_recent_tests gnome_welcome_ui_probe gnome_public_welcome_ui_probe gnome_close_ui_probe gnome_default_keys_ui_probe gnome_keyfile_tests gnome_keyfile_ui_probe
     BUILD_ALWAYS TRUE
@@ -56,6 +56,9 @@ add_test(NAME gnome_auto_type_tests COMMAND "${CMAKE_COMMAND}" -E env
     "XDG_STATE_HOME=${CMAKE_BINARY_DIR}/auto-type-profile/state"
     "${CMAKE_BINARY_DIR}/bin/gnome_auto_type_tests" "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-worker")
 set_tests_properties(gnome_auto_type_tests PROPERTIES TIMEOUT 45)
+add_test(NAME gnome_totp_tests
+    COMMAND "${CMAKE_BINARY_DIR}/bin/gnome_totp_tests" "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-worker")
+set_tests_properties(gnome_totp_tests PROPERTIES TIMEOUT 45)
 add_test(NAME gnome_keyfile_tests COMMAND "${CMAKE_COMMAND}" -E env
     "XDG_CONFIG_HOME=${CMAKE_BINARY_DIR}/keyfile-profile/config"
     "XDG_CACHE_HOME=${CMAKE_BINARY_DIR}/keyfile-profile/cache"

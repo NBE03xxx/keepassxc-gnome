@@ -15,7 +15,7 @@
 
 namespace SessionProtocol {
 inline constexpr quint32 MaximumFrame = 16U << 20;
-inline constexpr int Version = 8; // selected-entry Auto-Type sequences
+inline constexpr int Version = 9; // selected-entry TOTP
 struct Error : std::runtime_error { Error() : std::runtime_error("Invalid worker protocol") {} };
 struct SizeError : Error {};
 
@@ -100,6 +100,31 @@ inline EntryDetails details(const QJsonValue& value)
     if (!a[7].isDouble() || a[7].toInt(-2) < -1 || !a[8].isBool()) throw Error{};
     return {text(a[0]), text(a[1]), text(a[2]), text(a[3]), text(a[4]), text(a[5]), text(a[6]), a[7].toInt(), a[8].toBool()};
 }
+inline QJsonArray encode(const TotpCode& code)
+{
+    return {int(code.status), str(code.value), qint64(code.startsAtMs), qint64(code.expiresAtMs)};
+}
+inline TotpCode totpCode(const QJsonValue& value)
+{
+    using Status = TotpCode::Status;
+    const auto fields = value.toArray();
+    if (fields.size() != 4) throw Error{};
+    const auto status = fields[0].toInt(-1);
+    const auto code = string(fields[1]);
+    const auto start = fields[2].toInteger(-1);
+    const auto expiry = fields[3].toInteger(-1);
+    if (status < int(Status::Unavailable) || status > int(Status::Ready)) throw Error{};
+    if (status == int(Status::Ready)) {
+        if (code.isEmpty() || code.size() > TotpCode::MaximumDigits || start < 0 || expiry <= start
+            || expiry - start > qint64(TotpCode::MaximumPeriodSeconds) * 1000) throw Error{};
+        for (const auto c : code) {
+            if (!((c >= u'0' && c <= u'9') || (c >= u'A' && c <= u'Z'))) throw Error{};
+        }
+    } else if (!code.isEmpty() || start != 0 || expiry != 0) {
+        throw Error{};
+    }
+    return {Status(status), code.toStdString(), start, expiry};
+}
 inline QJsonArray encode(const AutoTypeSequence& sequence)
 {
     QJsonArray steps;
@@ -152,7 +177,7 @@ inline AutoTypeSequence autoTypeSequence(const QJsonValue& value)
 inline bool mutation(const QString& op)
 {
     return op == "addGroup" || op == "renameGroup" || op == "updateGroup" || op == "setGroupIcon" || op == "removeGroup" || op == "addEntry"
-        || op == "updateEntry" || op == "removeEntry" || op == "rename";
+        || op == "updateEntry" || op == "removeEntry" || op == "rename" || op == "setTotp" || op == "removeTotp";
 }
 inline QByteArray frame(const QJsonObject& object)
 {

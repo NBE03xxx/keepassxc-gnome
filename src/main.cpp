@@ -322,6 +322,7 @@ public:
         entryDelete = iconButton("user-trash-symbolic", tr("Delete"), [this] { deleteEntry(); });
         copyUser = iconButton("avatar-default-symbolic", tr("Copy username"), [this] { copy(false); });
         copyPass = iconButton("edit-copy-symbolic", tr("Copy password"), [this] { copy(true); });
+        totpButton = button(tr("TOTP"), [this] { showTotp(); });
         autoTypeButton = iconButton("input-keyboard-symbolic", tr("Auto-Type"), [this] { startAutoType(); });
         for (auto* item : {entryAdd, entryEdit, entryDelete, copyUser, copyPass, autoTypeButton}) {
             gtk_box_append(GTK_BOX(entryActions), item);
@@ -355,6 +356,7 @@ public:
             g_object_ref(item); gtk_box_remove(GTK_BOX(entryActions), item);
             gtk_box_append(GTK_BOX(previewActions), item); g_object_unref(item);
         }
+        gtk_box_append(GTK_BOX(previewActions), totpButton);
         gtk_box_append(GTK_BOX(preview), previewActions);
         auto* previewFields = gtk_grid_new();
         gtk_grid_set_column_homogeneous(GTK_GRID(previewFields), TRUE);
@@ -479,6 +481,7 @@ public:
     ~Window()
     {
         closing = true;
+        clearTotp();
         autoType.cancel();
         clearBrowserApproval();
         browser.reset();
@@ -582,9 +585,10 @@ private:
             gtk_widget_set_sensitive(item, ready);
         }
         gtk_widget_set_sensitive(groupDelete, ready && !groupRows.empty() && selectedGroup != groupRows.front().id);
-        for (auto* item : {entryEdit, entryDelete, copyUser, copyPass}) {
+        for (auto* item : {entryEdit, entryDelete, copyUser, copyPass, totpButton}) {
             gtk_widget_set_sensitive(item, selected);
         }
+        updateTotpButtons();
         gtk_widget_set_sensitive(autoTypeButton, autoType.active() || (selected && autoTypeGuardAvailable));
         if (!autoType.active()) adw_banner_set_revealed(autoTypeBanner, FALSE);
         const auto* autoTypeLabel = autoType.active() ? tr("Cancel Auto-Type") : tr("Auto-Type");
@@ -1001,6 +1005,7 @@ private:
         lockReady = false;
         unlocked = false;
         autoType.cancel();
+        clearTotp();
         clearBrowserApproval();
         if (browser) browser->closeConnections();
         gtk_stack_set_visible_child_name(stack, "locked");
@@ -1716,6 +1721,202 @@ private:
         adw_dialog_present(dialog, GTK_WIDGET(window));
     }
 
+    struct TotpView
+    {
+        std::string id;
+        GtkLabel* code = nullptr;
+        GtkLabel* statusLabel = nullptr;
+        GtkLabel* error = nullptr;
+        GtkEditable* secret = nullptr;
+        GtkWidget* apply = nullptr;
+        GtkWidget* remove = nullptr;
+        TotpCode::Status status = TotpCode::Status::Unavailable;
+        std::int64_t start = 0, expiry = 0;
+        int seconds = -1;
+        guint timer = 0;
+        bool loaded = false, requesting = false;
+    };
+
+    void updateTotpButtons()
+    {
+        if (!totpView) return;
+        auto& v = *totpView;
+        const bool available = v.status != TotpCode::Status::Unavailable;
+        const bool canChange = available && v.loaded && unlocked && !busy && !v.requesting;
+        gtk_widget_set_sensitive(v.apply, canChange && *gtk_editable_get_text(v.secret));
+        const bool configured = available && v.status != TotpCode::Status::NotConfigured;
+        gtk_widget_set_visible(v.remove, configured);
+        gtk_widget_set_sensitive(v.remove, canChange && configured);
+    }
+
+    void clearTotp()
+    {
+        auto view = std::exchange(totpView, {});
+        if (!view) return;
+        if (view->timer) g_source_remove(view->timer);
+        gtk_label_set_text(view->code, "");
+        gtk_editable_set_text(view->secret, "");
+    }
+
+    void updateTotpClock()
+    {
+        if (!totpView) return;
+        auto& v = *totpView;
+        if (v.loaded && v.status == TotpCode::Status::Ready) {
+            const auto now = g_get_real_time() / 1000;
+            if (now >= v.start && now < v.expiry) {
+                const int seconds = (v.expiry - now + 999) / 1000;
+                if (v.seconds != seconds) {
+                    v.seconds = seconds;
+                    auto* text = g_strdup_printf(ngettext("%d second remaining", "%d seconds remaining", seconds), seconds);
+                    gtk_label_set_text(v.statusLabel, text);
+                    g_free(text);
+                }
+                return;
+            }
+            gtk_label_set_text(v.code, "");
+            gtk_label_set_text(v.statusLabel, tr("Refreshing the code…"));
+            v.loaded = false;
+        }
+        if (!unlocked || v.loaded || v.requesting || busy) return;
+        v.requesting = true;
+        const std::weak_ptr<TotpView> view = totpView;
+        submit([id = v.id](RemoteSession& session) { return session.totpCode(id); }, [this, view](TotpCode& reply) {
+            const auto v = view.lock();
+            if (!v) return;
+            using Status = TotpCode::Status;
+            v->requesting = false;
+            v->status = reply.status;
+            v->loaded = true;
+            v->start = reply.startsAtMs;
+            v->expiry = reply.expiresAtMs;
+            v->seconds = -1;
+            switch (reply.status) {
+            case Status::Ready: {
+                const auto now = g_get_real_time() / 1000;
+                if (now >= v->start && now < v->expiry) {
+                    gtk_label_set_text(v->code, reply.value.c_str());
+                    updateTotpClock();
+                } else {
+                    v->loaded = false;
+                }
+                break;
+            }
+            case Status::Unavailable: gtk_label_set_text(v->statusLabel, tr("This entry is unavailable.")); break;
+            case Status::NotConfigured: gtk_label_set_text(v->statusLabel, tr("TOTP is not set up for this entry.")); break;
+            case Status::Invalid: gtk_label_set_text(v->statusLabel, tr("The saved TOTP settings cannot generate a code.")); break;
+            }
+            updateTotpButtons();
+        }, false);
+    }
+
+    void changeTotp(bool remove)
+    {
+        if (!totpView || !unlocked || busy || !totpView->loaded) return;
+        const std::weak_ptr<TotpView> view = totpView;
+        const auto secret = Sensitive::owned(new std::string(remove ? "" : gtk_editable_get_text(totpView->secret)));
+        const auto id = totpView->id;
+        auto* error = totpView->error;
+        if (!remove && (secret->empty() || secret->size() > TotpCode::MaximumInputBytes)) {
+            gtk_label_set_text(error, tr("Enter a valid Base32 key or an otpauth TOTP URI."));
+            return;
+        }
+        gtk_label_set_text(error, "");
+        gtk_label_set_text(totpView->code, "");
+        gtk_label_set_text(totpView->statusLabel, tr("Refreshing the code…"));
+        gtk_widget_set_sensitive(GTK_WIDGET(totpView->secret), FALSE);
+        totpView->loaded = false;
+        submit([id, remove, secret](RemoteSession& session) {
+            return remove ? session.removeTotp(id) : session.setTotp(id, *secret);
+        }, [this, view, remove](bool ok) {
+            if (ok) dirty = true;
+            if (const auto v = view.lock()) {
+                gtk_widget_set_sensitive(GTK_WIDGET(v->secret), TRUE);
+                if (ok) {
+                    gtk_editable_set_text(v->secret, "");
+                } else {
+                    gtk_label_set_text(v->error, remove ? tr("Could not remove the TOTP settings.")
+                                                       : tr("Enter a valid Base32 key or an otpauth TOTP URI."));
+                }
+                updateTotpClock();
+            }
+            message(ok ? tr("Unsaved changes") : tr("Could not update the entry."));
+        }, false);
+    }
+
+    void showTotp()
+    {
+        checkIdle();
+        const auto id = selectedEntry();
+        if (!unlocked || busy || id.empty() || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(window))) return;
+        idle.activity(IdleLock::bootTime());
+        auto* dialog = ADW_DIALOG(adw_dialog_new());
+        adw_dialog_set_title(dialog, tr("TOTP"));
+        adw_dialog_set_content_width(dialog, 440);
+        adw_dialog_set_content_height(dialog, 440);
+        auto* toolbar = ADW_TOOLBAR_VIEW(adw_toolbar_view_new());
+        adw_toolbar_view_add_top_bar(toolbar, adw_header_bar_new());
+        auto* page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
+        auto* group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+        adw_preferences_group_set_title(group, tr("Authentication code"));
+        auto& v = *(totpView = std::make_shared<TotpView>());
+        v.id = id;
+        v.code = GTK_LABEL(gtk_label_new(""));
+        gtk_widget_add_css_class(GTK_WIDGET(v.code), "kpxc-totp-code");
+        gtk_widget_add_css_class(GTK_WIDGET(v.code), "monospace");
+        v.statusLabel = GTK_LABEL(gtk_label_new(tr("Refreshing the code…")));
+        gtk_label_set_wrap(v.statusLabel, TRUE);
+        adw_preferences_group_add(group, GTK_WIDGET(v.code));
+        adw_preferences_group_add(group, GTK_WIDGET(v.statusLabel));
+        adw_preferences_page_add(page, group);
+        auto* setup = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+        adw_preferences_group_set_title(setup, tr("TOTP settings"));
+        adw_preferences_group_set_description(setup, tr("Enter a new Base32 key or otpauth TOTP URI to replace the current setup."));
+        auto* secret = adw_password_entry_row_new();
+        adw_preferences_row_set_title(ADW_PREFERENCES_ROW(secret), tr("TOTP key or URI"));
+        secureEditable(secret, true);
+        adw_entry_row_set_activates_default(ADW_ENTRY_ROW(secret), TRUE);
+        v.secret = GTK_EDITABLE(secret);
+        adw_preferences_group_add(setup, secret);
+        v.error = GTK_LABEL(gtk_label_new(""));
+        gtk_label_set_wrap(v.error, TRUE);
+        gtk_widget_add_css_class(GTK_WIDGET(v.error), "error");
+        adw_preferences_group_add(setup, GTK_WIDGET(v.error));
+        auto* actions = ADW_WRAP_BOX(adw_wrap_box_new());
+        adw_wrap_box_set_align(actions, 1);
+        adw_wrap_box_set_child_spacing(actions, 8);
+        adw_wrap_box_set_line_spacing(actions, 8);
+        gtk_widget_set_margin_start(GTK_WIDGET(actions), 12);
+        gtk_widget_set_margin_end(GTK_WIDGET(actions), 12);
+        gtk_widget_set_margin_top(GTK_WIDGET(actions), 8);
+        gtk_widget_set_margin_bottom(GTK_WIDGET(actions), 8);
+        v.apply = button(tr("Save TOTP settings"), [this] { changeTotp(false); });
+        v.remove = button(tr("Remove TOTP"), [this] { changeTotp(true); });
+        gtk_widget_add_css_class(v.apply, "suggested-action");
+        gtk_widget_add_css_class(v.remove, "destructive-action");
+        adw_wrap_box_append(actions, v.remove);
+        adw_wrap_box_append(actions, v.apply);
+        adw_preferences_page_add(page, setup);
+        adw_toolbar_view_set_content(toolbar, GTK_WIDGET(page));
+        adw_toolbar_view_set_bottom_bar_style(toolbar, ADW_TOOLBAR_RAISED_BORDER);
+        adw_toolbar_view_add_bottom_bar(toolbar, GTK_WIDGET(actions));
+        adw_dialog_set_child(dialog, GTK_WIDGET(toolbar));
+        adw_dialog_set_default_widget(dialog, v.apply);
+        g_signal_connect(secret, "changed", G_CALLBACK(+[](GtkEditable*, gpointer data) {
+            static_cast<Window*>(data)->updateTotpButtons();
+        }), this);
+        g_signal_connect(dialog, "closed", G_CALLBACK(+[](AdwDialog*, gpointer data) {
+            static_cast<Window*>(data)->clearTotp();
+        }), this);
+        adw_dialog_present(dialog, GTK_WIDGET(window));
+        v.timer = g_timeout_add(200, +[](gpointer data) -> gboolean {
+            auto& window = *static_cast<Window*>(data);
+            window.updateTotpClock();
+            return window.totpView ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
+        }, this);
+        updateTotpClock();
+    }
+
     void cancelAutoType()
     {
         autoType.cancel();
@@ -1890,6 +2091,8 @@ private:
     GtkWidget *preview = nullptr, *previewHint = nullptr;
     GtkLabel *previewTitle = nullptr, *previewUsername = nullptr, *previewUrl = nullptr, *previewNotes = nullptr;
     GtkEditable* previewPassword = nullptr;
+    GtkWidget* totpButton = nullptr;
+    std::shared_ptr<TotpView> totpView;
     unsigned previewSerial = 0;
     GtkEditable* search = nullptr;
     GtkWidget *newButton = nullptr, *openButton = nullptr, *saveButton = nullptr, *lockButton = nullptr;
