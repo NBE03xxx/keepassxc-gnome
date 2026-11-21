@@ -435,3 +435,16 @@ bool RemoteSession::discardRecovery(const std::string& directory)
 }
 std::string RemoteSession::copyUsername(const std::string& id) const { return impl->text("copyUsername", {str(id)}); }
 std::string RemoteSession::copyPassword(const std::string& id) const { return impl->text("copyPassword", {str(id)}); }
+
+AutoTypeSequence RemoteSession::autoTypeSequence(const std::string& id) const
+{
+    if (!impl->unlocked || id.empty() || id.size() > 64) return {};
+    const auto value = impl->call("autoTypeSequence", {str(id)});
+    if (impl->fatal != ReadFailure::None || !impl->unlocked) return {};
+    try {
+        return SessionProtocol::autoTypeSequence(value);
+    } catch (const Error&) {
+        impl->trip(ReadFailure::WorkerFailure);
+        return {};
+    }
+}

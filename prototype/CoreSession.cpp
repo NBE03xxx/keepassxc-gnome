@@ -566,3 +566,9 @@ std::string CoreSession::copyPassword(const std::string& id) const
     const auto* entry = findEntry(id);
     return entry && !entry->isRecycled() ? entry->resolveMultiplePlaceholders(entry->password()).toStdString() : std::string{};
 }
+
+AutoTypeSequence CoreSession::autoTypeSequence(const std::string& id) const
+{
+    const auto* entry = findEntry(id);
+    return entry ? selectedEntryAutoType(*entry) : AutoTypeSequence{};
+}

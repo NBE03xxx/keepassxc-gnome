@@ -16,7 +16,7 @@ CACHE = ROOT / ".cache" / "development"
 PACKAGES = (
     "cmake", "qt6-base-dev", "qt6-svg-dev", "qt6-tools-dev", "libbotan-3-dev",
     "libminizip-dev", "libpcsclite-dev", "libusb-1.0-0-dev", "libkeyutils-dev",
-    "libqrencode-dev", "libgtk-4-dev", "libadwaita-1-dev",
+    "libqrencode-dev", "libgtk-4-dev", "libadwaita-1-dev", "libei-dev",
 )
 
 
@@ -39,22 +39,31 @@ def download(item):
 def main():
     (CACHE / "packages").mkdir(parents=True, exist_ok=True)
     prefix = CACHE / "sysroot"
+    manifest_path = CACHE / "packages.json"
+    # An incremental APT plan can omit packages that are now installed on the
+    # host. Their previous copies still exist in the SDK and the packager needs
+    # their verified shlibs metadata.
+    previous = json.loads(manifest_path.read_text()) if manifest_path.exists() else []
+    packages = {item["file"].split("_", 1)[0]: item for item in previous}
     plan = subprocess.check_output([
         "apt-get", "--print-uris", "--yes", "--download-only", "--no-install-recommends",
         "-o", "Acquire::ForceHash=SHA256", "install", *PACKAGES,
     ], text=True)
-    manifest = []
     for line in plan.splitlines():
         match = re.fullmatch(r"'([^']+)' (\S+) (\d+) SHA256:([0-9a-f]{64})", line)
         if match:
             url, filename, size, digest = match.groups()
-            manifest.append({"url": url.replace("http://", "https://", 1), "file": filename,
-                             "size": int(size), "sha256": digest})
-    (CACHE / "packages.json").write_text(json.dumps(manifest, indent=2) + "\n")
+            packages[filename.split("_", 1)[0]] = {
+                "url": url.replace("http://", "https://", 1), "file": filename, "size": int(size), "sha256": digest
+            }
+    manifest = list(packages.values())
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         paths = list(pool.map(download, manifest))
     for path in paths:
         subprocess.run(["dpkg-deb", "--extract", str(path), str(prefix)], check=True)
+    temporary_manifest = manifest_path.with_suffix(".tmp")
+    temporary_manifest.write_text(json.dumps(manifest, indent=2) + "\n")
+    temporary_manifest.replace(manifest_path)
 
     # Rebase only the extracted development files. System pkg-config files retain
     # their existing prefixes and continue to describe installed dependencies.

@@ -63,6 +63,10 @@ QJsonValue dispatch(CoreSession& session, const QString& op, const QJsonArray& a
         count(1); auto value = Sensitive::owned(new std::string(op == "copyUsername" ? session.copyUsername(text(a[0])) : session.copyPassword(text(a[0]))));
         return str(*value);
     }
+    if (op == "autoTypeSequence") {
+        count(1);
+        return encode(session.autoTypeSequence(text(a[0])));
+    }
     throw Error{};
 }
 }

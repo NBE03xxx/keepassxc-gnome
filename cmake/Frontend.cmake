@@ -6,6 +6,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(ADWAITA REQUIRED IMPORTED_TARGET libadwaita-1>=1.6)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 pkg_check_modules(GIO_UNIX REQUIRED IMPORTED_TARGET gio-unix-2.0)
+pkg_check_modules(LIBEI REQUIRED IMPORTED_TARGET libei-1.0>=1.5)
+pkg_check_modules(AUTOTYPE_XKB REQUIRED IMPORTED_TARGET xkbcommon)
 pkg_check_modules(PANGOFT2 REQUIRED IMPORTED_TARGET pangoft2)
 find_program(MSGFMT_EXECUTABLE msgfmt REQUIRED)
 find_program(GLIB_COMPILE_RESOURCES glib-compile-resources REQUIRED)
@@ -37,6 +39,7 @@ target_include_directories(gnome_safe_save PUBLIC "${KPXC_GNOME_SOURCE}/src" "${
 target_link_libraries(gnome_safe_save PUBLIC Qt6::Core)
 add_library(gnome_session STATIC
     "${KPXC_GNOME_SOURCE}/prototype/CoreSession.cpp"
+    "${KPXC_GNOME_SOURCE}/prototype/AutoTypeSequence.cpp"
     "${KPXC_GNOME_SOURCE}/prototype/BrowserAccess.cpp")
 target_include_directories(gnome_session PUBLIC "${KPXC_GNOME_SOURCE}/prototype")
 target_include_directories(gnome_session SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
@@ -69,13 +72,24 @@ add_custom_command(OUTPUT "${locale_file}"
     DEPENDS "${KPXC_GNOME_SOURCE}/po/ja.po" VERBATIM)
 add_custom_target(gnome_translations DEPENDS "${locale_file}")
 
-add_library(gnome_lifetime STATIC "${CMAKE_CURRENT_BINARY_DIR}/database-icons.cpp" "${KPXC_GNOME_SOURCE}/src/gnome/SessionGuard.cpp" "${KPXC_GNOME_SOURCE}/src/gnome/SecretClipboard.cpp" "${KPXC_GNOME_SOURCE}/src/gnome/NativePicker.cpp")
+add_library(gnome_lifetime STATIC "${CMAKE_CURRENT_BINARY_DIR}/database-icons.cpp"
+    "${KPXC_GNOME_SOURCE}/src/gnome/SessionGuard.cpp" "${KPXC_GNOME_SOURCE}/src/gnome/SecretClipboard.cpp"
+    "${KPXC_GNOME_SOURCE}/src/gnome/NativePicker.cpp" "${KPXC_GNOME_SOURCE}/src/gnome/NativeAutoType.cpp")
 target_include_directories(gnome_lifetime PUBLIC "${KPXC_GNOME_SOURCE}/src" "${KPXC_GNOME_SOURCE}/prototype")
 target_link_libraries(gnome_lifetime PUBLIC PkgConfig::ADWAITA PkgConfig::PANGOFT2)
 add_executable(keepassxc-gnome-picker "${KPXC_GNOME_SOURCE}/src/gnome/native_picker_worker.cpp")
 target_link_libraries(keepassxc-gnome-picker PRIVATE PkgConfig::GIO)
+add_executable(keepassxc-gnome-auto-type
+    "${KPXC_GNOME_SOURCE}/src/gnome/AutoTypePortal.cpp"
+    "${KPXC_GNOME_SOURCE}/src/gnome/auto_type_worker.cpp")
+target_include_directories(keepassxc-gnome-auto-type PRIVATE
+    "${KPXC_GNOME_SOURCE}/src" "${KPXC_GNOME_SOURCE}/prototype")
+target_link_libraries(keepassxc-gnome-auto-type PRIVATE
+    PkgConfig::GIO_UNIX PkgConfig::LIBEI PkgConfig::AUTOTYPE_XKB)
+set_target_properties(keepassxc-gnome-auto-type PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 set_target_properties(keepassxc-gnome-picker PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 add_executable(keepassxc-gnome "${KPXC_GNOME_SOURCE}/src/main.cpp")
+add_dependencies(keepassxc-gnome keepassxc-gnome-auto-type)
 target_link_libraries(keepassxc-gnome PRIVATE gnome_session gnome_remote gnome_lifetime PkgConfig::ADWAITA)
 set_target_properties(keepassxc-gnome PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 add_dependencies(keepassxc-gnome gnome_translations keepassxc-gnome-worker keepassxc-gnome-picker keepassxc-gnome-browser-host)
@@ -103,6 +117,12 @@ target_link_libraries(gnome_browser_pairing_tests PRIVATE gnome_session gnome_re
 set_target_properties(gnome_browser_pairing_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 add_dependencies(gnome_browser_pairing_tests keepassxc-gnome-worker)
+
+add_executable(gnome_auto_type_tests "${KPXC_GNOME_SOURCE}/tests/auto_type_tests.cpp")
+target_include_directories(gnome_auto_type_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
+target_link_libraries(gnome_auto_type_tests PRIVATE gnome_session gnome_remote)
+set_target_properties(gnome_auto_type_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
+add_dependencies(gnome_auto_type_tests keepassxc-gnome-worker)
 
 target_include_directories(gnome_domain_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
 target_link_libraries(gnome_domain_tests PRIVATE gnome_session)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AutoTypeSequence.h"
 #include "ReadLimits.h"
 #include "SaveTypes.h"
 
@@ -103,6 +104,7 @@ public:
     std::string recoveryDirectory() const { return recoveryPath; }
     std::string copyUsername(const std::string& id) const;
     std::string copyPassword(const std::string& id) const;
+    AutoTypeSequence autoTypeSequence(const std::string& id) const;
 
 private:
     friend class BrowserSession;

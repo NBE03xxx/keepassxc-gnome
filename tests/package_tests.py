@@ -39,6 +39,17 @@ with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as 
     doc = stage / 'usr/share/doc' / package
     manifest = json.loads((doc / 'build-manifest.json').read_text())
     require('keepassxc-gnome-browser-host' in manifest['binaries'], 'bundled Native Messaging host identity')
+    require('keepassxc-gnome-auto-type' in manifest['binaries'], 'bundled Auto-Type helper identity')
+    ime_extension = stage / 'usr/share/gnome-shell/extensions/keepassxc-auto-type-ime@keepassxc-gnome'
+    require((ime_extension / 'extension.js').is_file()
+            and json.loads((ime_extension / 'metadata.json').read_text())['uuid'] == ime_extension.name
+            and not (stage / 'usr/share/glib-2.0/schemas').exists(),
+            'bundled IME extension with user-controlled activation')
+    extension_manifest = manifest['gnome_shell_extension']
+    require(extension_manifest['uuid'] == ime_extension.name
+            and set(extension_manifest['files']) == {'metadata.json', 'extension.js'}
+            and all(hashlib.sha256((ime_extension / name).read_bytes()).hexdigest() == digest
+                    for name, digest in extension_manifest['files'].items()), 'bundled IME extension identity')
     require(not any(p.name == 'org.keepassxc.keepassxc_browser.json' for p in stage.rglob('*')),
             'Chrome registration is created by explicit user action only')
     require(hashlib.sha256((deb.parent / manifest['source']['file']).read_bytes()).hexdigest() == manifest['source']['sha256'], 'matching complete corresponding source')

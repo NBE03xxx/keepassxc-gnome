@@ -3,14 +3,29 @@
 Ubuntu 26.04 / GNOME 50 / Wayland 向けのパスワードマネージャーです。
 KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェクトで、本家KeePassXCの公式版ではありません。
 
+## Auto-Typeで日本語IMEを自動切り替え
+
+**日本語変換を有効にしたままAuto-Typeを使うには、同梱のGNOME Shell拡張を有効にしてください。** ショートカットを押すと一時的に直接入力へ切り替わり、入力後に元の入力ソースへ戻ります。
+
+1. 下の手順でv0.4.0以降のdebをインストールし、GNOMEから一度ログアウトしてログインします。
+2. 端末で次のコマンドを一度実行します。
+
+   ```bash
+   gnome-extensions enable keepassxc-auto-type-ime@keepassxc-gnome
+   ```
+
+3. KeePassXC GNOMEで「自動入力」を準備します。「IMEは一時的に自動で切り替わります」と表示されたら、入力先でショートカットを押します。
+
+**動作確認済みの構成は、GNOME 50 Waylandの「日本語（Mozc）」と「日本語」の組み合わせです。** ほかのIMEでも、GNOMEが管理するIBus入力ソースと直接入力用の配列があれば切り替えられる設計ですが、動作は未検証です。「ウィンドウごとに異なる入力ソース」の設定はオフにします。拡張を使わない場合は、入力先を先に直接入力にします。[Auto-Typeの詳しい手順](docs/user-guide.md#自動入力auto-type)
+
 ## インストール
 
-[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、v0.3.0のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
+[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、同じ版のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
 
 ```bash
-sha256sum keepassxc-gnome_0.3.0-1_amd64.deb
+sha256sum keepassxc-gnome_0.4.0-1_amd64.deb
 # 表示された値をSHA256SUMS内の同名ファイルの値と照合
-sudo apt install ./keepassxc-gnome_0.3.0-1_amd64.deb
+sudo apt install ./keepassxc-gnome_0.4.0-1_amd64.deb
 ```
 
 アプリ一覧から「KeePassXC GNOME」を起動します。右上のデータベースメニューの「このアプリについて」でバージョンを確認できます。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
@@ -20,6 +35,7 @@ sudo apt install ./keepassxc-gnome_0.3.0-1_amd64.deb
 - KDBX 3.1 / 4.0 / 4.1の読み書き、作成・保存・ロック
 - 既存DBのキーファイル単独・マスターパスワード併用での解除
 - Chrome安定版（deb）との連携、許可したHTTPSサイトへのログイン情報入力
+- GNOME Waylandで、選択したエントリーをフォーカス中の入力先へ自動入力
 - グループとエントリーの管理、検索、プレビュー、アイコン選択
 - パスワード生成、ユーザー名・パスワードのコピー
 - 未保存表示、保存時のバックアップ、未保存の変更の復旧
@@ -33,13 +49,14 @@ sudo apt install ./keepassxc-gnome_0.3.0-1_amd64.deb
 
 ブラウザー連携には、Chrome Web Store版のKeePassXC-Browserが必要です。接続とHTTPSフォームへの入力はアプリで許可します。フォームの送信はブラウザーで行います。[ブラウザー連携の手順](docs/user-guide.md#ブラウザー連携)を参照してください。
 
-YubiKeyでの解除、Auto-Type、TOTPのコード生成・表示は未対応です。既存のTOTP設定は保持します。キーファイルの生成・新規DBへの設定・既存DBの鍵変更には本家KeePassXCを使用してください。保持できない形式・設定のデータは理由を示して読み込みを拒否します。既存のカスタムアイコン画像は保持しますが、画面では汎用アイコンを表示します。
+自動入力は、GNOMEでキーボード操作を許可してから、利用者が入力先でショートカットを押したときに動作します。対応する命令とキー配列には制限があります。[自動入力の手順](docs/user-guide.md#自動入力auto-type)を参照してください。
+
+YubiKeyでの解除、TOTPのコード生成・表示は未対応です。既存のTOTP設定は保持します。キーファイルの生成・新規DBへの設定・既存DBの鍵変更には本家KeePassXCを使用してください。保持できない形式・設定のデータは理由を示して読み込みを拒否します。既存のカスタムアイコン画像は保持しますが、画面では汎用アイコンを表示します。
 
 ## ロードマップ
 
 今後、以下の機能を段階的に実装する予定です。
 
-- Auto-Type
 - TOTPの設定・認証コードの生成と表示
 
 検証用デバイスがないため、YubiKey対応は現時点の実装予定に含めません。

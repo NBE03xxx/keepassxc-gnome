@@ -15,7 +15,7 @@
 
 namespace SessionProtocol {
 inline constexpr quint32 MaximumFrame = 16U << 20;
-inline constexpr int Version = 7; // browser login approval summaries
+inline constexpr int Version = 8; // selected-entry Auto-Type sequences
 struct Error : std::runtime_error { Error() : std::runtime_error("Invalid worker protocol") {} };
 struct SizeError : Error {};
 
@@ -99,6 +99,55 @@ inline EntryDetails details(const QJsonValue& value)
     const auto a = value.toArray();
     if (!a[7].isDouble() || a[7].toInt(-2) < -1 || !a[8].isBool()) throw Error{};
     return {text(a[0]), text(a[1]), text(a[2]), text(a[3]), text(a[4]), text(a[5]), text(a[6]), a[7].toInt(), a[8].toBool()};
+}
+inline QJsonArray encode(const AutoTypeSequence& sequence)
+{
+    QJsonArray steps;
+    for (const auto& step : sequence.steps) steps.append(QJsonArray{int(step.kind), int(step.value)});
+    return {int(sequence.status), steps};
+}
+inline AutoTypeSequence autoTypeSequence(const QJsonValue& value)
+{
+    using Kind = AutoTypeStep::Kind;
+    using Status = AutoTypeSequence::Status;
+    const auto encoded = value.toArray();
+    if (encoded.size() != 2 || !encoded[1].isArray()) throw Error{};
+    const int status = encoded[0].toInt(-1);
+    const auto steps = encoded[1].toArray();
+    const bool ready = status == int(Status::Ready);
+    if (status < int(Status::Unavailable) || status > int(Status::Ready)
+        || steps.size() > AutoTypeSequence::MaximumSteps || (ready && steps.isEmpty()) || (!ready && !steps.isEmpty())) {
+        throw Error{};
+    }
+    AutoTypeSequence result;
+    result.status = Status(status);
+    result.steps.reserve(steps.size());
+    unsigned delay = 0;
+    bool hasCharacter = false;
+    for (const auto& step : steps) {
+        const auto pair = step.toArray();
+        if (pair.size() != 2) throw Error{};
+        const int kind = pair[0].toInt(-1);
+        const int number = pair[1].toInt(-1);
+        if (kind < int(Kind::Character) || kind > int(Kind::Delay) || number < 0) throw Error{};
+        switch (Kind(kind)) {
+        case Kind::Character:
+            if (number > 0x10ffff || !QChar::isPrint(char32_t(number))) throw Error{};
+            hasCharacter = true;
+            break;
+        case Kind::Delay:
+            if (unsigned(number) > AutoTypeSequence::MaximumTotalDelayMs - delay) throw Error{};
+            delay += unsigned(number);
+            break;
+        case Kind::Tab:
+        case Kind::Enter:
+            if (number != 0) throw Error{};
+            break;
+        }
+        result.steps.push_back({Kind(kind), std::uint32_t(number)});
+    }
+    if (ready && !hasCharacter) throw Error{};
+    return result;
 }
 inline bool mutation(const QString& op)
 {

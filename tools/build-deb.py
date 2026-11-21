@@ -18,7 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'lib'))
 from provenance import ROOT, verify
 
 NAME = 'keepassxc-gnome-development'
-BINARIES = ['keepassxc-gnome', 'keepassxc-gnome-worker', 'keepassxc-gnome-picker', 'keepassxc-gnome-browser-host']
+BINARIES = ['keepassxc-gnome', 'keepassxc-gnome-worker', 'keepassxc-gnome-picker',
+            'keepassxc-gnome-browser-host', 'keepassxc-gnome-auto-type']
+IME_EXTENSION = 'keepassxc-auto-type-ime@keepassxc-gnome'
 
 def run(args, **kwargs):
     return subprocess.check_output([str(a) for a in args], text=True, **kwargs).strip()
@@ -32,7 +34,7 @@ def main():
     parser.add_argument('--version')
     parser.add_argument('--maintainer', help='Debian Maintainer name and email; required for --release')
     args = parser.parse_args()
-    args.version = args.version or ('0.3.0-1' if args.release else '0.1.0~dev1-1')
+    args.version = args.version or ('0.4.0-1' if args.release else '0.1.0~dev1-1')
     if args.release and not args.maintainer: parser.error('--release requires an explicitly supplied --maintainer')
     args.maintainer = args.maintainer or 'KeePassXC GNOME developers <noreply@localhost>'
     name = 'keepassxc-gnome' if args.release else NAME
@@ -108,6 +110,7 @@ def main():
         calculated = run(command, cwd=work)
         dependencies = next(line.split('=', 1)[1] for line in calculated.splitlines() if line.startswith('shlibs:Depends='))
         dependencies += ', gsettings-desktop-schemas, xdg-desktop-portal, xdg-desktop-portal-gnome'
+        extension = stage / 'usr/share/gnome-shell/extensions' / IME_EXTENSION
         manifests = {
             'schema': 1, 'package': name, 'version': args.version, 'architecture': architecture,
             'development_ui': development_ui, 'release_package': args.release,
@@ -119,6 +122,8 @@ def main():
             'pkg_config': {name: run(['pkg-config', '--modversion', name]) for name in ['gtk4', 'libadwaita-1', 'glib-2.0', 'pango', 'pangoft2', 'cairo', 'fontconfig', 'Qt6Core', 'botan-3']},
             'toolchain': {tool: run([tool, '--version']).splitlines()[0] for tool in ['cmake', 'c++', 'ninja', 'dpkg-deb', 'strip']},
             'binaries': {p.name: sha(p) for p in executables},
+            'gnome_shell_extension': {'uuid': IME_EXTENSION,
+                                      'files': {name: sha(extension / name) for name in ('metadata.json', 'extension.js')}},
             'qualification': 'Ubuntu 26.04 GNOME/Wayland; short personal sessions; see README limitations' if args.release else 'development-only; VM install and physical-session checks required',
         }
         manifest = json.dumps(manifests, indent=2, sort_keys=True) + '\n'

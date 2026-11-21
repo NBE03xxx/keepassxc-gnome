@@ -4,6 +4,7 @@ install(PROGRAMS
     "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-worker"
     "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-picker"
     "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-browser-host"
+    "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-auto-type"
     DESTINATION libexec/keepassxc-gnome)
 install(FILES "${CMAKE_BINARY_DIR}/share/locale/ja/LC_MESSAGES/keepassxc-gnome.mo"
     DESTINATION share/locale/ja/LC_MESSAGES)
@@ -20,3 +21,9 @@ install(CODE [[
 # Register a distinct MIME package; never replace upstream's files/defaults.
 install(FILES "${CMAKE_SOURCE_DIR}/packaging/org.keepassxc.Gnome.Development.xml"
     DESTINATION share/mime/packages)
+
+set(ime_extension "keepassxc-auto-type-ime@keepassxc-gnome")
+install(FILES
+    "${CMAKE_SOURCE_DIR}/packaging/gnome-shell/${ime_extension}/metadata.json"
+    "${CMAKE_SOURCE_DIR}/packaging/gnome-shell/${ime_extension}/extension.js"
+    DESTINATION "share/gnome-shell/extensions/${ime_extension}")

@@ -32,6 +32,9 @@ check_runtime() {
     if dpkg-query -L "$package" | grep -Fx "$directory/keepassxc-gnome-browser-host" >/dev/null; then
         helpers+=(keepassxc-gnome-browser-host)
     fi
+    if dpkg-query -L "$package" | grep -Fx "$directory/keepassxc-gnome-auto-type" >/dev/null; then
+        helpers+=(keepassxc-gnome-auto-type)
+    fi
     for item in "${helpers[@]}"; do
         [[ -x $directory/$item ]]
         libraries=$(env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH ldd "$directory/$item")
@@ -66,6 +69,7 @@ apt-get --yes purge "$package"
 [[ ! -e /usr/bin/keepassxc-gnome && ! -L /usr/bin/keepassxc-gnome ]]
 [[ ! -e /usr/libexec/keepassxc-gnome/keepassxc-gnome-worker ]]
 [[ ! -e /usr/libexec/keepassxc-gnome/keepassxc-gnome-browser-host ]]
+[[ ! -e /usr/libexec/keepassxc-gnome/keepassxc-gnome-auto-type ]]
 sha256sum --check "$record/sentinels"
 check_original > "$record/original.after"
 cmp "$record/original.before" "$record/original.after"

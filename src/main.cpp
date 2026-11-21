@@ -6,6 +6,7 @@
 #include "gnome/SessionGuard.h"
 #include "gnome/SecretClipboard.h"
 #include "gnome/NativePicker.h"
+#include "gnome/NativeAutoType.h"
 #include "gnome/Appearance.h"
 #include "gnome/Locale.h"
 #include "gnome/FontCache.h"
@@ -321,7 +322,8 @@ public:
         entryDelete = iconButton("user-trash-symbolic", tr("Delete"), [this] { deleteEntry(); });
         copyUser = iconButton("avatar-default-symbolic", tr("Copy username"), [this] { copy(false); });
         copyPass = iconButton("edit-copy-symbolic", tr("Copy password"), [this] { copy(true); });
-        for (auto* item : {entryAdd, entryEdit, entryDelete, copyUser, copyPass}) {
+        autoTypeButton = iconButton("input-keyboard-symbolic", tr("Auto-Type"), [this] { startAutoType(); });
+        for (auto* item : {entryAdd, entryEdit, entryDelete, copyUser, copyPass, autoTypeButton}) {
             gtk_box_append(GTK_BOX(entryActions), item);
         }
         gtk_box_append(GTK_BOX(listHeader), entryActions);
@@ -393,6 +395,8 @@ public:
         gtk_box_append(GTK_BOX(right), emptyLabel);
         adw_overlay_split_view_set_content(split, right);
         gtk_stack_add_named(stack, GTK_WIDGET(split), "unlocked");
+        autoTypeBanner = ADW_BANNER(adw_banner_new(""));
+        adw_toolbar_view_add_top_bar(toolbar, GTK_WIDGET(autoTypeBanner));
         gtk_box_append(GTK_BOX(content), GTK_WIDGET(stack));
         status = GTK_LABEL(gtk_label_new(tr("Ready")));
         gtk_label_set_wrap(status, TRUE);
@@ -417,7 +421,18 @@ public:
         }), this);
         auto* root = g_build_filename(g_get_user_state_dir(), "keepassxc-gnome", "recovery", nullptr);
         checkpointFolder = root; g_mkdir_with_parents(root, 0700); g_free(root);
-        guard = std::make_unique<SessionGuard>([this] { automaticLock(); }, [this](bool available) { if (!closing) { adw_banner_set_revealed(guardBanner, !available); sensitivity(); } });
+        guard = std::make_unique<SessionGuard>([this] { automaticLock(); }, [this](bool available) {
+            autoTypeGuardAvailable = available;
+            if (!available) autoType.cancel();
+            if (!closing) {
+                adw_banner_set_revealed(guardBanner, !available);
+                sensitivity();
+            }
+        });
+        g_signal_connect(window, "notify::is-active", G_CALLBACK(+[](GtkWindow* window, GParamSpec*, gpointer data) {
+            auto& self = *static_cast<Window*>(data);
+            if (gtk_window_is_active(window) && self.autoType.triggered()) self.cancelAutoType();
+        }), this);
         idle.activity(IdleLock::bootTime());
         idleTimer = g_timeout_add_seconds(1, +[](gpointer data) -> gboolean {
             auto& self = *static_cast<Window*>(data); self.checkIdle();
@@ -464,6 +479,7 @@ public:
     ~Window()
     {
         closing = true;
+        autoType.cancel();
         clearBrowserApproval();
         browser.reset();
         worker.shutdown();
@@ -569,6 +585,11 @@ private:
         for (auto* item : {entryEdit, entryDelete, copyUser, copyPass}) {
             gtk_widget_set_sensitive(item, selected);
         }
+        gtk_widget_set_sensitive(autoTypeButton, autoType.active() || (selected && autoTypeGuardAvailable));
+        if (!autoType.active()) adw_banner_set_revealed(autoTypeBanner, FALSE);
+        const auto* autoTypeLabel = autoType.active() ? tr("Cancel Auto-Type") : tr("Auto-Type");
+        gtk_widget_set_tooltip_text(autoTypeButton, autoTypeLabel);
+        gtk_accessible_update_property(GTK_ACCESSIBLE(autoTypeButton), GTK_ACCESSIBLE_PROPERTY_LABEL, autoTypeLabel, -1);
         gtk_widget_set_sensitive(lockButton, unlocked || loading);
         gtk_widget_set_visible(cancelButton, loading);
         gtk_widget_set_sensitive(recoveryButton, !busy && !closeSavePending);
@@ -979,6 +1000,7 @@ private:
         ++generation;
         lockReady = false;
         unlocked = false;
+        autoType.cancel();
         clearBrowserApproval();
         if (browser) browser->closeConnections();
         gtk_stack_set_visible_child_name(stack, "locked");
@@ -1694,6 +1716,91 @@ private:
         adw_dialog_present(dialog, GTK_WIDGET(window));
     }
 
+    void cancelAutoType()
+    {
+        autoType.cancel();
+        sensitivity();
+        if (!closing && unlocked) message(tr("Auto-Type cancelled."));
+    }
+
+    void startAutoType()
+    {
+        if (autoType.active()) {
+            cancelAutoType();
+            return;
+        }
+        const auto epoch = generation;
+        checkIdle();
+        const auto id = selectedEntry();
+        if (epoch != generation || !unlocked || busy || !autoTypeGuardAvailable || id.empty()) return;
+        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Prepare Auto-Type?"),
+            tr("GNOME will ask for keyboard access. Focus the first field in the intended app and press the Auto-Type shortcut. The saved sequence may press Enter. Keep the target in focus until typing finishes.")));
+        adw_alert_dialog_add_responses(dialog, "cancel", tr("Cancel"), "start", tr("Prepare Auto-Type"), nullptr);
+        adw_alert_dialog_set_default_response(dialog, "cancel");
+        adw_alert_dialog_set_close_response(dialog, "cancel");
+        auto* callback = new std::function<void()>([this, id, epoch] {
+            if (epoch != generation || !unlocked || busy || !autoTypeGuardAvailable || selectedEntry() != id) return;
+            if (autoType.start(window, tr("Type the selected KeePassXC GNOME entry"), [this, id, epoch](NativeAutoType::Event event) {
+                autoTypeEvent(event, id, epoch);
+            })) {
+                message(tr("Waiting for GNOME to allow Auto-Type."));
+                sensitivity();
+            } else message(tr("Auto-Type requires a GNOME Wayland session."));
+        });
+        g_signal_connect_data(dialog, "response", G_CALLBACK(+[](AdwAlertDialog*, const char* response, gpointer data) {
+            if (g_str_equal(response, "start")) (*static_cast<std::function<void()>*>(data))();
+        }), callback, +[](gpointer p, GClosure*) { delete static_cast<std::function<void()>*>(p); }, G_CONNECT_DEFAULT);
+        adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
+    }
+
+    void autoTypeEvent(NativeAutoType::Event event, const std::string& id, std::uint64_t epoch)
+    {
+        using Event = NativeAutoType::Event;
+        checkIdle();
+        if (closing || !unlocked || epoch != generation) return;
+        switch (event) {
+        case Event::Ready:
+        case Event::ReadyWithIme:
+            message("");
+            adw_banner_set_title(autoTypeBanner, event == Event::ReadyWithIme
+                ? tr("Focus the target’s first field and press the Auto-Type shortcut. The IME will switch temporarily.")
+                : tr("Use direct input in the target, focus its first field, then press the Auto-Type shortcut set in GNOME."));
+            adw_banner_set_revealed(autoTypeBanner, TRUE);
+            return;
+        case Event::Triggered:
+            adw_banner_set_revealed(autoTypeBanner, FALSE);
+            if (busy || !autoTypeGuardAvailable || gtk_window_is_active(window) || selectedEntry() != id) {
+                cancelAutoType();
+                return;
+            }
+            submit([id](RemoteSession& session) { return session.autoTypeSequence(id); },
+                [this, id, epoch](AutoTypeSequence& sequence) {
+                    checkIdle();
+                    if (epoch != generation || !autoType.triggered()) return;
+                    if (!autoTypeGuardAvailable || gtk_window_is_active(window) || selectedEntry() != id) {
+                        cancelAutoType();
+                        return;
+                    }
+                    if (sequence.status != AutoTypeSequence::Status::Ready) {
+                        autoType.cancel();
+                        sensitivity();
+                        message(sequence.status == AutoTypeSequence::Status::Unavailable
+                            ? tr("Auto-Type is unavailable for this entry.")
+                            : tr("This entry uses an unsupported Auto-Type sequence."));
+                    } else if (!autoType.send(sequence)) cancelAutoType();
+                });
+            return;
+        case Event::Done: message(tr("Auto-Type finished.")); break;
+        case Event::PermissionOrShortcut: message(tr("GNOME did not grant keyboard access or the Auto-Type shortcut was not used in time.")); break;
+        case Event::UnsupportedLayout: message(tr("The active keyboard layout cannot type this Auto-Type sequence.")); break;
+        case Event::ModifiersHeld: message(tr("Release all shortcut keys before using Auto-Type.")); break;
+        case Event::ImeUnavailable: message(tr("Could not switch the IME. Finish any ongoing conversion or use direct input, then try again.")); break;
+        case Event::ImeRestoreFailed: message(tr("Auto-Type finished, but the previous input source could not be restored.")); break;
+        case Event::Interrupted: message(tr("Auto-Type stopped before completing the sequence.")); break;
+        }
+        sensitivity();
+    }
+
     void copy(bool password)
     {
         if (!unlocked || busy) return;
@@ -1773,6 +1880,7 @@ private:
     guint openRequestTimer = 0;
     unsigned openAttempts = 0;
     GtkLabel* status = nullptr;
+    AdwBanner* autoTypeBanner = nullptr;
     AdwWindowTitle* windowTitle = nullptr;
     std::unique_ptr<NavigationList> groups;
     std::unique_ptr<SummaryList> entries;
@@ -1798,6 +1906,9 @@ private:
     GtkWidget *copySaveButton = nullptr, *saveAsButton = nullptr, *recoveryButton = nullptr;
     GtkWidget *groupAdd = nullptr, *groupRename = nullptr, *groupDelete = nullptr;
     GtkWidget *entryAdd = nullptr, *entryEdit = nullptr, *entryDelete = nullptr, *copyUser = nullptr, *copyPass = nullptr;
+    GtkWidget* autoTypeButton = nullptr;
+    NativeAutoType autoType;
+    bool autoTypeGuardAvailable = false;
     GWeakRef editor{};
     NativePicker picker;
     std::unique_ptr<Appearance> appearance;

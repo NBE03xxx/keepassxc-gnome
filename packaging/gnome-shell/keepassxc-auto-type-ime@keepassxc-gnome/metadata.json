@@ -1,0 +1,7 @@
+{
+  "uuid": "keepassxc-auto-type-ime@keepassxc-gnome",
+  "name": "KeePassXC GNOME Auto-Type IME",
+  "description": "Temporarily switch to direct keyboard input for KeePassXC GNOME Auto-Type.",
+  "shell-version": ["50"],
+  "url": "https://github.com/NBE03xxx/keepassxc-gnome"
+}

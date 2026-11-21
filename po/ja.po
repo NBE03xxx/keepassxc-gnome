@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: KeePassXC GNOME 0.3.0\n"
+"Project-Id-Version: KeePassXC GNOME 0.4.0\n"
 "PO-Revision-Date: 2026-11-12 23:00+0900\n"
 "Last-Translator: KeePassXC GNOME developers\n"
 "Language-Team: Japanese\n"
@@ -206,6 +206,66 @@ msgstr "データベースメニュー"
 
 msgid "About This App"
 msgstr "このアプリについて"
+
+msgid "Auto-Type"
+msgstr "自動入力"
+
+msgid "Cancel Auto-Type"
+msgstr "自動入力を取り消す"
+
+msgid "Prepare Auto-Type?"
+msgstr "自動入力を準備しますか？"
+
+msgid "Prepare Auto-Type"
+msgstr "自動入力を準備する"
+
+msgid "GNOME will ask for keyboard access. Focus the first field in the intended app and press the Auto-Type shortcut. The saved sequence may press Enter. Keep the target in focus until typing finishes."
+msgstr "GNOMEがキーボード操作の許可を求めます。入力先の最初の欄で自動入力のショートカットを押してください。保存された手順によってはEnterも送られます。入力が終わるまで対象の欄から移動しないでください。"
+
+msgid "Type the selected KeePassXC GNOME entry"
+msgstr "KeePassXC GNOMEで選択したエントリーを自動入力する"
+
+msgid "Waiting for GNOME to allow Auto-Type."
+msgstr "GNOMEで自動入力が許可されるのを待っています。"
+
+msgid "Use direct input in the target, focus its first field, then press the Auto-Type shortcut set in GNOME."
+msgstr "入力先で日本語変換をオフ（直接入力）にし、最初の欄でGNOMEの自動入力ショートカットを押してください。"
+
+msgid "Focus the target’s first field and press the Auto-Type shortcut. The IME will switch temporarily."
+msgstr "入力先の最初の欄で自動入力のショートカットを押してください。IMEは一時的に自動で切り替わります。"
+
+msgid "Could not switch the IME. Finish any ongoing conversion or use direct input, then try again."
+msgstr "IMEを切り替えられませんでした。変換中の文字を確定するか、入力先を直接入力にして再試行してください。"
+
+msgid "Auto-Type finished, but the previous input source could not be restored."
+msgstr "自動入力は完了しました。元の入力ソースに戻せなかったため、GNOMEの入力ソースを確認してください。"
+
+msgid "Auto-Type requires a GNOME Wayland session."
+msgstr "自動入力にはGNOME Waylandセッションが必要です。"
+
+msgid "Auto-Type is unavailable for this entry."
+msgstr "このエントリーでは自動入力を利用できません。"
+
+msgid "This entry uses an unsupported Auto-Type sequence."
+msgstr "このエントリーには自動入力で未対応の命令が含まれています。"
+
+msgid "Auto-Type cancelled."
+msgstr "自動入力を取り消しました。"
+
+msgid "Auto-Type finished."
+msgstr "自動入力が完了しました。"
+
+msgid "GNOME did not grant keyboard access or the Auto-Type shortcut was not used in time."
+msgstr "GNOMEでキーボード操作が許可されなかったか、自動入力のショートカットが制限時間内に使われませんでした。"
+
+msgid "The active keyboard layout cannot type this Auto-Type sequence."
+msgstr "現在のキーボード配列では、この自動入力の手順を実行できません。"
+
+msgid "Release all shortcut keys before using Auto-Type."
+msgstr "自動入力を行うには、ショートカットのキーをすべて離してください。"
+
+msgid "Auto-Type stopped before completing the sequence."
+msgstr "自動入力を途中で停止しました。"
 
 msgid "Save as a new file"
 msgstr "新しいファイルに保存"

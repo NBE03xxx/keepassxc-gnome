@@ -71,6 +71,7 @@ public:
     bool discardRecovery(const std::string& directory);
     std::string copyUsername(const std::string& id) const;
     std::string copyPassword(const std::string& id) const;
+    AutoTypeSequence autoTypeSequence(const std::string& id) const;
     BrowserReply browserRequest(int connection, const QJsonObject& message);
     BrowserReply browserDecision(int connection, const QString& approval, const QString& selection = {});
     void closeBrowserConnection(int connection);
