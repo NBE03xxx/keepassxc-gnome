@@ -5,6 +5,7 @@ include("${KPXC_GNOME_SOURCE}/cmake/CoreOverrides.cmake")
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ADWAITA REQUIRED IMPORTED_TARGET libadwaita-1>=1.6)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+pkg_check_modules(GIO_UNIX REQUIRED IMPORTED_TARGET gio-unix-2.0)
 pkg_check_modules(PANGOFT2 REQUIRED IMPORTED_TARGET pangoft2)
 find_program(MSGFMT_EXECUTABLE msgfmt REQUIRED)
 find_program(GLIB_COMPILE_RESOURCES glib-compile-resources REQUIRED)
@@ -34,16 +35,30 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/database-icons.cpp"
 add_library(gnome_safe_save STATIC "${KPXC_GNOME_SOURCE}/src/gnome/SafeSave.cpp")
 target_include_directories(gnome_safe_save PUBLIC "${KPXC_GNOME_SOURCE}/src" "${KPXC_GNOME_SOURCE}/prototype")
 target_link_libraries(gnome_safe_save PUBLIC Qt6::Core)
-add_library(gnome_session STATIC "${KPXC_GNOME_SOURCE}/prototype/CoreSession.cpp")
+add_library(gnome_session STATIC
+    "${KPXC_GNOME_SOURCE}/prototype/CoreSession.cpp"
+    "${KPXC_GNOME_SOURCE}/prototype/BrowserAccess.cpp")
 target_include_directories(gnome_session PUBLIC "${KPXC_GNOME_SOURCE}/prototype")
 target_include_directories(gnome_session SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
 target_link_libraries(gnome_session PUBLIC keepassxc_core gnome_safe_save PRIVATE text_stream)
 
-add_library(gnome_remote STATIC "${KPXC_GNOME_SOURCE}/src/gnome/RemoteSession.cpp")
+add_library(gnome_remote STATIC
+    "${KPXC_GNOME_SOURCE}/src/gnome/RemoteSession.cpp"
+    "${KPXC_GNOME_SOURCE}/src/gnome/BrowserIntegration.cpp")
 target_include_directories(gnome_remote PUBLIC "${KPXC_GNOME_SOURCE}/src" "${KPXC_GNOME_SOURCE}/prototype")
-target_link_libraries(gnome_remote PUBLIC Qt6::Core)
-add_executable(keepassxc-gnome-worker "${KPXC_GNOME_SOURCE}/src/gnome/session_worker.cpp")
-target_link_libraries(keepassxc-gnome-worker PRIVATE gnome_session)
+target_link_libraries(gnome_remote PUBLIC Qt6::Core PRIVATE PkgConfig::GIO_UNIX)
+add_executable(keepassxc-gnome-browser-host "${KPXC_GNOME_SOURCE}/src/gnome/browser_native_host.cpp")
+target_include_directories(keepassxc-gnome-browser-host PRIVATE "${KPXC_GNOME_SOURCE}/src")
+target_link_libraries(keepassxc-gnome-browser-host PRIVATE Qt6::Core)
+set_target_properties(keepassxc-gnome-browser-host PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
+add_library(gnome_browser_messages STATIC "${CMAKE_SOURCE_DIR}/src/browser/BrowserMessageBuilder.cpp")
+target_include_directories(gnome_browser_messages SYSTEM PUBLIC
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src" "${BOTAN_INCLUDE_DIR}")
+target_link_libraries(gnome_browser_messages PUBLIC Qt6::Core ${BOTAN_LIBRARIES})
+add_executable(keepassxc-gnome-worker
+    "${KPXC_GNOME_SOURCE}/src/gnome/session_worker.cpp"
+    "${KPXC_GNOME_SOURCE}/src/gnome/BrowserSession.cpp")
+target_link_libraries(keepassxc-gnome-worker PRIVATE gnome_session gnome_browser_messages)
 target_include_directories(keepassxc-gnome-worker SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
 set_target_properties(keepassxc-gnome-worker PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 
@@ -63,7 +78,7 @@ set_target_properties(keepassxc-gnome-picker PROPERTIES RUNTIME_OUTPUT_DIRECTORY
 add_executable(keepassxc-gnome "${KPXC_GNOME_SOURCE}/src/main.cpp")
 target_link_libraries(keepassxc-gnome PRIVATE gnome_session gnome_remote gnome_lifetime PkgConfig::ADWAITA)
 set_target_properties(keepassxc-gnome PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
-add_dependencies(keepassxc-gnome gnome_translations keepassxc-gnome-worker keepassxc-gnome-picker)
+add_dependencies(keepassxc-gnome gnome_translations keepassxc-gnome-worker keepassxc-gnome-picker keepassxc-gnome-browser-host)
 
 add_executable(gnome_domain_tests "${KPXC_GNOME_SOURCE}/tests/domain_tests.cpp")
 add_executable(gnome_keyfile_tests "${KPXC_GNOME_SOURCE}/tests/keyfile_tests.cpp")
@@ -76,6 +91,19 @@ target_include_directories(gnome_keyfile_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DI
 target_link_libraries(gnome_keyfile_tests PRIVATE gnome_session gnome_remote)
 set_target_properties(gnome_keyfile_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 add_dependencies(gnome_keyfile_tests keepassxc-gnome-worker)
+
+# Synthetic responder for the isolated browser compatibility test.
+add_executable(gnome_browser_connection_probe EXCLUDE_FROM_ALL
+    "${KPXC_GNOME_SOURCE}/tests/browser_connection_probe.cpp")
+target_link_libraries(gnome_browser_connection_probe PRIVATE gnome_browser_messages)
+set_target_properties(gnome_browser_connection_probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
+add_executable(gnome_browser_pairing_tests "${KPXC_GNOME_SOURCE}/tests/browser_pairing_tests.cpp")
+target_link_libraries(gnome_browser_pairing_tests PRIVATE gnome_session gnome_remote gnome_browser_messages)
+set_target_properties(gnome_browser_pairing_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
+add_dependencies(gnome_browser_pairing_tests keepassxc-gnome-worker)
+
 target_include_directories(gnome_domain_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
 target_link_libraries(gnome_domain_tests PRIVATE gnome_session)
 set_target_properties(gnome_domain_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
@@ -137,7 +165,6 @@ add_dependencies(gnome_save_ui_probe gnome_translations keepassxc-gnome-worker k
 
 add_executable(gnome_lifetime_tests "${KPXC_GNOME_SOURCE}/tests/lifetime_tests.cpp")
 target_include_directories(gnome_lifetime_tests SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_BINARY_DIR}/src")
-pkg_check_modules(GIO_UNIX REQUIRED IMPORTED_TARGET gio-unix-2.0)
 target_link_libraries(gnome_lifetime_tests PRIVATE gnome_session gnome_remote gnome_lifetime PkgConfig::GIO_UNIX)
 set_target_properties(gnome_lifetime_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${KPXC_GNOME_OUTPUT}/bin")
 add_dependencies(gnome_lifetime_tests keepassxc-gnome-worker)
@@ -177,6 +204,7 @@ set_target_properties(gnome_stream_finalization_tests PROPERTIES RUNTIME_OUTPUT_
 
 # Development-only notices can be enabled explicitly for validation builds.
 option(KPXC_GNOME_DEVELOPMENT_UI "Show development qualification in the frontend" OFF)
+add_compile_definitions(KPXC_GNOME_VERSION="${KPXC_GNOME_VERSION}")
 foreach(ui IN ITEMS keepassxc-gnome gnome_save_ui_probe gnome_lifetime_ui_probe gnome_polish_ui_probe)
     target_compile_definitions(${ui} PRIVATE KPXC_GNOME_DEVELOPMENT_UI=$<BOOL:${KPXC_GNOME_DEVELOPMENT_UI}>)
 endforeach()

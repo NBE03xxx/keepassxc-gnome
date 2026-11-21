@@ -11,6 +11,8 @@
 #include "gnome/FontCache.h"
 #include "gnome/RuntimePaths.h"
 #include "gnome/RecentDatabase.h"
+#include "gnome/BrowserIntegration.h"
+#include "gnome/BrowserNaming.h"
 
 #ifndef KPXC_GNOME_DEVELOPMENT_UI
 #define KPXC_GNOME_DEVELOPMENT_UI 0
@@ -179,6 +181,7 @@ public:
         saveAsButton = action(tr("Save as a new file"), [this] { chooseFile(true, true); });
         recoveryButton = action(tr("Recovery files"), [this] { chooseRecoveryFolder(); });
         automaticRecoveryButton = action(tr("Recover unsaved changes"), [this] { inspectRecovery(checkpointFolder); });
+        action(tr("Browser integration"), [this] { browserSettings(); });
         action(tr("Opening KDBX files"), [this] {
             auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Opening KDBX files"),
                 tr("In Files, right-click a KDBX file and choose Open With to select KeePassXC or KeePassXC GNOME. You can change the default application in the file's Properties. This app does not overwrite an explicitly selected default application.")));
@@ -198,6 +201,14 @@ public:
         forgetButton = action(tr("Forget recent database"), [this] {
             if (!recent.forget()) message(tr("Could not update recent database preferences. Check the application state folder permissions."));
             sensitivity();
+        });
+        action(tr("About This App"), [this] {
+            adw_show_about_dialog(GTK_WIDGET(window),
+                                  "application-name", KPXC_GNOME_DEVELOPMENT_UI
+                                      ? tr("KeePassXC GNOME — Development") : "KeePassXC GNOME",
+                                  "application-icon", g_application_get_application_id(G_APPLICATION(this->application)),
+                                  "version", KPXC_GNOME_VERSION,
+                                  nullptr);
         });
         gtk_popover_set_child(popover, actions);
         gtk_menu_button_set_popover(GTK_MENU_BUTTON(menu), GTK_WIDGET(popover));
@@ -444,12 +455,17 @@ public:
                 return gtk_widget_grab_focus(GTK_WIDGET(self.search));
             }, this, nullptr)));
         gtk_widget_add_controller(GTK_WIDGET(window), shortcuts);
+        browser = std::make_unique<BrowserIntegration>(
+            [this](int connection, const QJsonObject& request) { browserRequest(connection, request); },
+            [this](int connection) { browserDisconnected(connection); });
         sensitivity();
     }
 
     ~Window()
     {
         closing = true;
+        clearBrowserApproval();
+        browser.reset();
         worker.shutdown();
         if (idleTimer) g_source_remove(idleTimer);
         cancelOpenRequest();
@@ -638,12 +654,12 @@ private:
     }
 
     template<typename Task, typename Done>
-    void submit(Task task, Done done)
+    void submit(Task task, Done done, bool showProgress = true)
     {
         ++pending;
         busy = true;
         sensitivity();
-        message(tr("Working…"));
+        if (showProgress) message(tr("Working…"));
         const auto epoch = generation;
         const std::weak_ptr<int> lifetime = alive;
         worker.run(std::move(task), [this, lifetime, epoch, done = std::move(done)](auto& result, ReadFailure transport) mutable {
@@ -662,6 +678,228 @@ private:
             sensitivity();
             done(result);
         });
+    }
+
+    void browserSettings()
+    {
+        using State = BrowserIntegration::State;
+        if (!browser || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(window))) return;
+        const auto state = browser->state();
+        const auto* body = state == State::Enabled
+            ? tr("Chrome integration is enabled. Open a saved database, then choose Connect in KeePassXC-Browser.")
+            : state == State::Conflict
+                ? tr("Another Chrome Native Messaging registration already uses this extension. Its registration has been kept.")
+                : state == State::Unavailable
+                    ? tr("Chrome integration is unavailable. Check the Chrome configuration directory and close any other KeePassXC GNOME window using browser integration.")
+                    : tr("Allow the official KeePassXC-Browser extension in Google Chrome to request a database connection.");
+        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Browser integration"), body));
+        adw_alert_dialog_add_responses(dialog, "cancel", tr("Close"), nullptr);
+        if (state == State::Enabled) adw_alert_dialog_add_response(dialog, "disable", tr("Disable for Chrome"));
+        if (state == State::Disabled || state == State::Unavailable)
+            adw_alert_dialog_add_response(dialog, "enable", tr("Enable for Chrome"));
+        adw_alert_dialog_set_default_response(dialog, "cancel");
+        adw_alert_dialog_set_close_response(dialog, "cancel");
+        g_signal_connect(dialog, "response", G_CALLBACK(+[](AdwAlertDialog*, const char* response, gpointer data) {
+            auto& self = *static_cast<Window*>(data);
+            if (self.closing || g_str_equal(response, "cancel")) return;
+            const auto state = g_str_equal(response, "enable") ? self.browser->enable() : self.browser->disable();
+            switch (state) {
+            case State::Disabled:
+                self.message(tr("Chrome integration is disabled."));
+                break;
+            case State::Enabled:
+                self.message(tr("Chrome integration is enabled. Open KeePassXC-Browser in Chrome to connect."));
+                break;
+            case State::Conflict:
+                self.message(tr("Another Chrome Native Messaging registration already uses this extension. Its registration has been kept."));
+                break;
+            case State::Unavailable:
+                self.message(tr("Could not change Chrome integration. Check the Chrome configuration directory and other KeePassXC GNOME windows."));
+                break;
+            }
+        }), this);
+        adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
+    }
+
+    bool browserModelAvailable()
+    {
+        const auto epoch = generation;
+        checkIdle();
+        return !closing && epoch == generation && unlocked && sourceKnown && (!guard || !guard->blocked());
+    }
+
+    void browserRequest(int connection, const QJsonObject& request)
+    {
+        const auto action = request.value("action").toString();
+        if (action.size() > 64) { browser->send(connection, {}); return; }
+        // The extension correlates error replies by action only when both
+        // error fields are present, unlike encrypted nonce-based replies.
+        const auto reject = [this, connection, &action](const char* code, const char* error) {
+            browser->send(connection, {{"action", action}, {"errorCode", code}, {"error", error}});
+        };
+        const bool needsApproval = action == "associate" || action == "get-logins";
+        if (action != "change-public-keys" && action != "get-databasehash" && action != "test-associate" && !needsApproval) {
+            reject("12", "Incorrect action");
+            return;
+        }
+        if (!browserModelAvailable()) { reject("1", "Database not opened"); return; }
+        if (busy || closeSavePending || (needsApproval
+                && (picker.active() || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(window))))) {
+            reject("6", "Action cancelled or denied");
+            return;
+        }
+        submit([connection, request](RemoteSession& session) {
+            return session.browserRequest(connection, request);
+        }, [this, connection](const BrowserReply& reply) {
+            if (!browserModelAvailable() || !browser->connected(connection)) return;
+            if (!reply.approval.isEmpty()) showBrowserApproval(connection, reply);
+            else browser->send(connection, reply.response);
+        }, false);
+    }
+
+    void browserDisconnected(int connection)
+    {
+        if (browserApproval && browserApproval->connection == connection) clearBrowserApproval();
+        if (closing || !unlocked) return;
+        const auto epoch = generation;
+        const std::weak_ptr<int> lifetime = alive;
+        worker.run([connection](RemoteSession& session) { session.closeBrowserConnection(connection); return true; },
+            [this, epoch, lifetime](bool, ReadFailure failure) {
+                if (lifetime.expired() || closing || epoch != generation || failure == ReadFailure::None) return;
+                worker.cancel();
+                conceal();
+                readFailure(failure);
+            });
+    }
+
+    void showBrowserApproval(int connection, const BrowserReply& reply)
+    {
+        const bool login = !reply.origin.isEmpty();
+        if (browserApproval || picker.active() || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(window))) {
+            decideBrowserConnection(connection, reply.approval, {}, login);
+            return;
+        }
+        if (login) {
+            showBrowserLoginApproval(connection, reply);
+            return;
+        }
+        const auto filename = displayFilename(currentPath);
+        const auto body = QString::fromUtf8(tr("KeePassXC-Browser wants to connect to “%1”. Choose a name for this browser connection."))
+            .arg(QString::fromStdString(filename)).toUtf8();
+        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Allow browser connection?"), body.constData()));
+        auto* name = ADW_ENTRY_ROW(adw_entry_row_new());
+        adw_preferences_row_set_title(ADW_PREFERENCES_ROW(name), tr("Connection name"));
+        auto* group = adw_preferences_group_new();
+        adw_preferences_group_set_description(ADW_PREFERENCES_GROUP(group), tr("Use letters, numbers, spaces, hyphens or underscores."));
+        adw_preferences_group_add(ADW_PREFERENCES_GROUP(group), GTK_WIDGET(name));
+        adw_alert_dialog_set_extra_child(dialog, group);
+        configureBrowserApproval(dialog, tr("Allow connection"), false);
+        g_signal_connect_object(name, "changed", G_CALLBACK(+[](GtkEditable* name, AdwAlertDialog* dialog) {
+            const auto value = QString::fromUtf8(gtk_editable_get_text(name)).normalized(QString::NormalizationForm_C);
+            adw_alert_dialog_set_response_enabled(dialog, "allow", validBrowserConnectionName(value));
+        }), dialog, G_CONNECT_DEFAULT);
+        presentBrowserApproval(connection, reply.approval, false, dialog, GTK_WIDGET(name), [name] {
+            return QString::fromUtf8(gtk_editable_get_text(GTK_EDITABLE(name))).normalized(QString::NormalizationForm_C);
+        });
+    }
+
+    void showBrowserLoginApproval(int connection, const BrowserReply& reply)
+    {
+        const auto body = QString::fromUtf8(tr("Choose one entry to make available to KeePassXC-Browser for %1."))
+            .arg(reply.origin).toUtf8();
+        auto* dialog = ADW_ALERT_DIALOG(adw_alert_dialog_new(tr("Allow login for this site?"), body.constData()));
+        adw_alert_dialog_add_response(dialog, "cancel", tr("Cancel"));
+        adw_alert_dialog_set_default_response(dialog, "cancel");
+        adw_alert_dialog_set_close_response(dialog, "cancel");
+        auto* list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+        for (const auto& choice : reply.choices) {
+            const auto title = choice.title.isEmpty() ? QString::fromUtf8(tr("Untitled entry")) : choice.title;
+            const auto entry = choice.group.isEmpty() ? title : title + QStringLiteral(" — ") + choice.group;
+            const auto label = QString::fromUtf8(tr("Allow %1")).arg(entry).toUtf8();
+            auto* allow = button(nullptr, [this, dialog, id = choice.id] {
+                if (browserApproval && browserApproval->dialog == dialog) finishBrowserApproval(id);
+            });
+            auto* text = gtk_label_new(label.constData());
+            gtk_label_set_wrap(GTK_LABEL(text), TRUE);
+            gtk_button_set_child(GTK_BUTTON(allow), text);
+            gtk_accessible_update_property(GTK_ACCESSIBLE(allow), GTK_ACCESSIBLE_PROPERTY_LABEL, label.constData(), -1);
+            gtk_box_append(GTK_BOX(list), allow);
+        }
+        auto* scroll = GTK_SCROLLED_WINDOW(gtk_scrolled_window_new());
+        gtk_scrolled_window_set_policy(scroll, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+        gtk_scrolled_window_set_propagate_natural_height(scroll, TRUE);
+        gtk_scrolled_window_set_max_content_height(scroll, 240);
+        gtk_scrolled_window_set_child(scroll, list);
+        adw_alert_dialog_set_extra_child(dialog, GTK_WIDGET(scroll));
+        presentBrowserApproval(connection, reply.approval, true, dialog, nullptr, [] { return QString{}; });
+    }
+
+    static void configureBrowserApproval(AdwAlertDialog* dialog, const char* allow, bool enabled)
+    {
+        adw_alert_dialog_add_responses(dialog, "cancel", tr("Cancel"), "allow", allow, nullptr);
+        adw_alert_dialog_set_default_response(dialog, "cancel");
+        adw_alert_dialog_set_close_response(dialog, "cancel");
+        adw_alert_dialog_set_response_appearance(dialog, "allow", ADW_RESPONSE_SUGGESTED);
+        adw_alert_dialog_set_response_enabled(dialog, "allow", enabled);
+    }
+
+    void presentBrowserApproval(int connection, const QString& token, bool login, AdwAlertDialog* dialog,
+                                GtkWidget* focus, std::function<QString()> selection)
+    {
+        struct Handler { Window& window; std::function<QString()> selection; };
+        g_signal_connect_data(dialog, "response", G_CALLBACK(+[](AdwAlertDialog* dialog, const char* response, gpointer data) {
+            auto& handler = *static_cast<Handler*>(data);
+            auto& self = handler.window;
+            if (!self.browserApproval || self.browserApproval->dialog != dialog) return;
+            const auto selection = g_str_equal(response, "allow") ? handler.selection() : QString{};
+            self.finishBrowserApproval(selection);
+        }), new Handler{*this, std::move(selection)},
+            +[](gpointer data, GClosure*) { delete static_cast<Handler*>(data); }, G_CONNECT_DEFAULT);
+        browserApproval.emplace(BrowserApproval{connection, token, generation, login, ADW_ALERT_DIALOG(g_object_ref_sink(dialog))});
+        browserApprovalTimer = g_timeout_add_seconds(55, +[](gpointer data) -> gboolean {
+            auto& self = *static_cast<Window*>(data);
+            self.browserApprovalTimer = 0;
+            self.finishBrowserApproval({});
+            return G_SOURCE_REMOVE;
+        }, this);
+        adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(window));
+        if (focus) gtk_widget_grab_focus(focus);
+    }
+
+    void clearBrowserApproval()
+    {
+        if (browserApprovalTimer) g_source_remove(std::exchange(browserApprovalTimer, 0));
+        if (auto approval = std::exchange(browserApproval, std::nullopt)) {
+            adw_dialog_force_close(ADW_DIALOG(approval->dialog));
+            g_object_unref(approval->dialog);
+        }
+    }
+
+    void finishBrowserApproval(const QString& selection)
+    {
+        if (!browserApproval) return;
+        const auto approval = *browserApproval;
+        clearBrowserApproval();
+        if (approval.epoch == generation && browserModelAvailable() && browser->connected(approval.connection)) {
+            decideBrowserConnection(approval.connection, approval.token, selection, approval.login);
+        }
+    }
+
+    void decideBrowserConnection(int connection, const QString& token, const QString& selection, bool login)
+    {
+        submit([connection, token, selection](RemoteSession& session) {
+            return session.browserDecision(connection, token, selection);
+        }, [this, connection, login, selected = !selection.isEmpty()](const BrowserReply& reply) {
+            if (!browserModelAvailable()) return;
+            if (reply.registered) {
+                dirty = true;
+                sensitivity();
+                message(tr("Browser connection allowed. Save the database to keep the connection."));
+            } else if (!login && selected && !reply.response.isEmpty()) {
+                message(tr("Could not register the browser connection. Try again with a unique connection name."));
+            }
+            browser->send(connection, reply.response);
+        }, !login && !selection.isEmpty());
     }
 
     void confirm(const char* title, const char* body, const char* accept, std::function<void()> action)
@@ -741,6 +979,8 @@ private:
         ++generation;
         lockReady = false;
         unlocked = false;
+        clearBrowserApproval();
+        if (browser) browser->closeConnections();
         gtk_stack_set_visible_child_name(stack, "locked");
         loading = false;
         saving = false;
@@ -993,6 +1233,7 @@ private:
                     return;
                 }
                 hasOpenedDatabase = true;
+                if (browser) browser->closeConnections();
                 unlocked = true;
                 idle.activity(IdleLock::bootTime());
                 dirty = create || !recovery.empty();
@@ -1585,6 +1826,16 @@ private:
     unsigned generation = 0;
     unsigned refreshSerial = 0;
     unsigned pickerSerial = 0;
+    struct BrowserApproval {
+        int connection;
+        QString token;
+        unsigned epoch;
+        bool login;
+        AdwAlertDialog* dialog;
+    };
+    std::optional<BrowserApproval> browserApproval;
+    guint browserApprovalTimer = 0;
+    std::unique_ptr<BrowserIntegration> browser;
     std::shared_ptr<int> alive = std::make_shared<int>(0);
     Worker worker;
 };
@@ -1598,7 +1849,8 @@ int main(int argc, char** argv)
     bind_textdomain_codeset("keepassxc-gnome", "UTF-8");
     textdomain("keepassxc-gnome");
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development 0.2.0" : "KeePassXC GNOME 0.2.0");
+        std::puts(KPXC_GNOME_DEVELOPMENT_UI ? "KeePassXC GNOME Development " KPXC_GNOME_VERSION
+                                          : "KeePassXC GNOME " KPXC_GNOME_VERSION);
         return 0;
     }
     if (argc == 2 && std::string(argv[1]) == "--language-check") {

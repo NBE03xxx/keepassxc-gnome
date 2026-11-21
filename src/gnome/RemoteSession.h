@@ -7,6 +7,22 @@
 #include <atomic>
 #include <memory>
 
+struct BrowserLoginChoice
+{
+    QString id;
+    QString title;
+    QString group;
+};
+
+struct BrowserReply
+{
+    QJsonObject response;
+    QString approval;
+    QString origin;
+    std::vector<BrowserLoginChoice> choices;
+    bool registered = false;
+};
+
 // All methods except cancel()/processId() belong to one controller thread.
 // Secrets and the database model stay in a private, disposable worker process.
 class RemoteSession
@@ -55,6 +71,9 @@ public:
     bool discardRecovery(const std::string& directory);
     std::string copyUsername(const std::string& id) const;
     std::string copyPassword(const std::string& id) const;
+    BrowserReply browserRequest(int connection, const QJsonObject& message);
+    BrowserReply browserDecision(int connection, const QString& approval, const QString& selection = {});
+    void closeBrowserConnection(int connection);
 
 private:
     struct Impl;

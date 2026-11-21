@@ -38,6 +38,9 @@ with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as 
     require(binary.is_symlink() and binary.resolve() == application / 'keepassxc-gnome', 'private helpers reached through relative launcher')
     doc = stage / 'usr/share/doc' / package
     manifest = json.loads((doc / 'build-manifest.json').read_text())
+    require('keepassxc-gnome-browser-host' in manifest['binaries'], 'bundled Native Messaging host identity')
+    require(not any(p.name == 'org.keepassxc.keepassxc_browser.json' for p in stage.rglob('*')),
+            'Chrome registration is created by explicit user action only')
     require(hashlib.sha256((deb.parent / manifest['source']['file']).read_bytes()).hexdigest() == manifest['source']['sha256'], 'matching complete corresponding source')
     for name, digest in manifest['binaries'].items():
         path = application / name
@@ -50,7 +53,10 @@ with tempfile.TemporaryDirectory(prefix='package-test-', dir=ROOT / 'build') as 
     for path in stage.rglob('*'):
         if path.is_file() and not path.is_symlink(): require(not path.stat().st_mode & 0o6000, path.relative_to(stage).as_posix() + ' no set-ID')
     version_text = run([binary,'--version'])
-    require(version_text.startswith('KeePassXC GNOME') and (not release or version_text == 'KeePassXC GNOME 0.2.0'), 'staged executable version and public branding')
+    package_version = run(['dpkg-deb', '-f', deb, 'Version'])
+    require(re.fullmatch(r'KeePassXC GNOME(?: Development)? [0-9]+\.[0-9]+\.[0-9]+', version_text)
+            and (not release or version_text == 'KeePassXC GNOME ' + package_version.rsplit('-', 1)[0]),
+            'staged executable version and public branding')
     require(manifest.get('release_package', False) == release and (not release or manifest.get('development_ui') is False), 'release package cannot contain development UI')
     require(run([binary,'--language-check'],env=dict(os.environ, LC_ALL='ja_JP.UTF-8',LANGUAGE='ja')) == '準備完了', 'staged Japanese translation path')
     require(run([binary,'--language-check'],env=dict(os.environ, LC_ALL='C.UTF-8',LANGUAGE='de')) == 'Ready', 'staged English fallback')

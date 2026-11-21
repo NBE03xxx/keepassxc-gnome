@@ -1,4 +1,5 @@
 #include "CoreSession.h"
+#include "gnome/BrowserSession.h"
 #include "gnome/ProcessPolicy.h"
 #include "gnome/SessionProtocol.h"
 #include "gnome/SafeSave.h"
@@ -81,6 +82,7 @@ int main(int argc, char** argv)
         if (!CoreSession::initialize()) return 70;
         CoreSession session;
         CheckpointStore checkpoints;
+        BrowserSession browser(session, checkpoints);
         if (!send(STDOUT_FILENO, {{"v", Version}, {"id", 0}, {"ready", true},
                 {"addressBytes", double(limits.addressBytes)}, {"cpuSeconds", int(limits.cpuSeconds)}})) return 0;
         QJsonObject request;
@@ -92,18 +94,32 @@ int main(int argc, char** argv)
             if (request["v"].toInt(-1) != Version || id != double(previous + 1) || !request["args"].isArray()) throw Error{};
             ++previous;
             const auto operation = string(request["op"]);
+            const auto args = request["args"].toArray();
             const bool saving = operation == "save" || operation == "saveAs" || operation == "saveCopy"
-                || operation == "enableRecovery" || (checkpoints.enabled() && mutation(operation));
+                || operation == "enableRecovery" || operation == "browserDecision"
+                || (checkpoints.enabled() && mutation(operation));
             if (!WorkerPolicy::armCpu(saving ? limits.saveCpuSeconds() : limits.cpuSeconds)) return 78;
             QJsonValue value;
             if (operation == "enableRecovery") {
-                const auto a = request["args"].toArray();
-                if (a.size() != 1 || !checkpoints.enable(string(a[0]), session)) _exit(76);
+                if (args.size() != 1 || !checkpoints.enable(string(args[0]), session)) _exit(76);
+                value = true;
+            } else if (operation == "browserRequest") {
+                if (args.size() != 2 || args[0].toInt() <= 0 || !args[1].isObject()) throw Error{};
+                value = browser.request(args[0].toInt(), args[1].toObject());
+            } else if (operation == "browserDecision") {
+                if (args.size() != 3 || args[0].toInt() <= 0) throw Error{};
+                value = browser.decide(args[0].toInt(), string(args[1]), string(args[2]));
+            } else if (operation == "browserClose") {
+                if (args.size() != 1 || args[0].toInt() <= 0) throw Error{};
+                browser.close(args[0].toInt());
                 value = true;
             } else {
-                value = dispatch(session, operation, request["args"].toArray());
+                value = dispatch(session, operation, args);
                 const bool changed = (value.isBool() && value.toBool()) || (value.isString() && !value.toString().isEmpty());
-                if (checkpoints.enabled() && mutation(operation) && changed && !checkpoints.commit(session)) _exit(76);
+                if (mutation(operation) && changed) {
+                    if (checkpoints.enabled() && !checkpoints.commit(session)) _exit(76);
+                    browser.modelChanged();
+                }
             }
             const auto failure = operation == "unlock" ? session.lastReadFailure() : ReadFailure::None;
             if (!send(STDOUT_FILENO, {{"v", Version}, {"id", id}, {"failure", int(failure)}, {"value", value}, {"checkpoint", str(checkpoints.latest())}})) return 0;

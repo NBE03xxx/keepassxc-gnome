@@ -10,6 +10,10 @@
 
 class Database;
 class Entry;
+class BrowserSession;
+class QJsonArray;
+class QJsonObject;
+class QString;
 
 enum class FixtureFormat { Kdbx3, Kdbx4, Kdbx41 };
 
@@ -101,6 +105,12 @@ public:
     std::string copyPassword(const std::string& id) const;
 
 private:
+    friend class BrowserSession;
+    QString browserDatabaseHash() const;
+    bool addBrowserAssociation(const QString& name, const QString& key);
+    bool matchesBrowserAssociation(const QString& name, const QString& key) const;
+    QJsonArray browserLoginChoices(const QString& origin, int maximum) const;
+    QJsonObject browserLogin(const QString& origin, const QString& id) const;
     bool persist(const std::string& path, bool replace, bool associate);
     std::string sourcePath;
     std::string recoveryPath;

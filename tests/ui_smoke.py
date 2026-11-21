@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the development GUI through AT-SPI in an isolated GNOME session."""
+import os
+import subprocess
 import time
 import gi
 
@@ -178,4 +180,9 @@ wait_for(lambda: named("ロックしました", "label"), "database locked")
 wait_for(lambda: named("データベースはロックされています", "label"), "previously opened database is actually locked")
 assert not named("変更済み UI Entry")
 assert not named("変更済み UI Group", "label")
+version = subprocess.check_output([os.environ["KPXC_UI_APP"], "--version"], text=True).split()[-1]
+click("データベースメニュー")
+click("このアプリについて")
+wait_for(lambda: named(version), "About dialog shows the same version as --version")
+print("PASS Japanese About dialog from the locked screen")
 print("PASS Japanese UI, database creation, entry creation/editing, search, group creation, discard confirmation and lock")

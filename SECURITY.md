@@ -1,6 +1,6 @@
 # セキュリティ上の問題の報告
 
-最新のv0.2.0を対象にセキュリティ修正を受け付けます。
+最新の公開版を対象にセキュリティ修正を受け付けます。
 
 脆弱性は、GitHubの[非公開報告](https://github.com/NBE03xxx/keepassxc-gnome/security/advisories/new)から報告してください。公開Issueには脆弱性の詳細や秘密情報を記載しないでください。
 

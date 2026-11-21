@@ -36,6 +36,8 @@
 
 namespace
 {
+const auto BrowserPairingPrefix = QStringLiteral("org.keepassxc.Gnome.BrowserPairing/");
+
 QSharedPointer<CompositeKey> keyFor(const std::string& password)
 {
     auto key = QSharedPointer<CompositeKey>::create();
@@ -492,6 +494,41 @@ bool CoreSession::saveCopy(const std::string& path)
 }
 
 bool CoreSession::isModified() const { return database && database->isModified(); }
+
+QString CoreSession::browserDatabaseHash() const
+{
+    if (!database || !hasSource() || !database->rootGroup()) {
+        return {};
+    }
+    // Keep the extension keyring separate from an upstream pairing of this DB.
+    const auto identity = QByteArrayLiteral("org.keepassxc.Gnome/browser-v1:")
+        + database->rootGroup()->uuidToHex().toUtf8();
+    return QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
+}
+
+bool CoreSession::addBrowserAssociation(const QString& name, const QString& key)
+{
+    if (!database || !hasSource()) {
+        return false;
+    }
+    auto* data = database->metadata()->customData();
+    const auto item = BrowserPairingPrefix + name;
+    if (data->contains(item)) {
+        return false;
+    }
+    data->set(item, key);
+    return true;
+}
+
+bool CoreSession::matchesBrowserAssociation(const QString& name, const QString& key) const
+{
+    if (!database || !hasSource() || key.isEmpty()) {
+        return false;
+    }
+    const auto item = BrowserPairingPrefix + name;
+    return database->metadata()->customData()->value(item) == key;
+}
+
 SaveResult CoreSession::checkpoint(const std::string& path, int* lease)
 {
     if (!database) { SaveResult result; result.status = SaveStatus::NoSource; return result; }

@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: KeePassXC GNOME 0.2.0\n"
+"Project-Id-Version: KeePassXC GNOME 0.3.0\n"
 "PO-Revision-Date: 2026-11-12 23:00+0900\n"
 "Last-Translator: KeePassXC GNOME developers\n"
 "Language-Team: Japanese\n"
@@ -203,6 +203,9 @@ msgstr "ロックしました。保存中だった場合は保存先と復旧用
 
 msgid "Database menu"
 msgstr "データベースメニュー"
+
+msgid "About This App"
+msgstr "このアプリについて"
 
 msgid "Save as a new file"
 msgstr "新しいファイルに保存"
@@ -517,3 +520,69 @@ msgstr "キーファイルが読み取り上限の16 MiBを超えています。
 
 msgid "Could not unlock the database. Check the password, key file, and database file."
 msgstr "データベースを解除できませんでした。パスワード、キーファイル、データベースのファイルを確認してください。"
+
+msgid "Browser integration"
+msgstr "ブラウザー連携"
+
+msgid "Chrome integration is enabled. Open a saved database, then choose Connect in KeePassXC-Browser."
+msgstr "Chrome との連携は有効です。保存済みのデータベースを開き、KeePassXC-Browser で「接続」を選んでください。"
+
+msgid "Another Chrome Native Messaging registration already uses this extension. Its registration has been kept."
+msgstr "この拡張機能を使う Chrome の連携設定がすでにあります。既存の設定はそのままです。"
+
+msgid "Chrome integration is unavailable. Check the Chrome configuration directory and close any other KeePassXC GNOME window using browser integration."
+msgstr "Chrome と連携できません。Chrome の設定フォルダーを確認し、ブラウザー連携を使用中の KeePassXC GNOME の別ウィンドウがあれば閉じてください。"
+
+msgid "Allow the official KeePassXC-Browser extension in Google Chrome to request a database connection."
+msgstr "Google Chrome の公式 KeePassXC-Browser 拡張機能からデータベースへの接続をリクエストできるようにします。"
+
+msgid "Disable for Chrome"
+msgstr "Chrome との連携を無効にする"
+
+msgid "Enable for Chrome"
+msgstr "Chrome との連携を有効にする"
+
+msgid "Chrome integration is disabled."
+msgstr "Chrome との連携を無効にしました。"
+
+msgid "Chrome integration is enabled. Open KeePassXC-Browser in Chrome to connect."
+msgstr "Chrome との連携を有効にしました。接続するには Chrome で KeePassXC-Browser を開いてください。"
+
+msgid "Could not change Chrome integration. Check the Chrome configuration directory and other KeePassXC GNOME windows."
+msgstr "Chrome との連携設定を変更できませんでした。Chrome の設定フォルダーと、KeePassXC GNOME の別ウィンドウを確認してください。"
+
+#, qt-format
+msgid "KeePassXC-Browser wants to connect to “%1”. Choose a name for this browser connection."
+msgstr "KeePassXC-Browser が「%1」への接続をリクエストしています。この接続の名前を入力してください。"
+
+msgid "Allow browser connection?"
+msgstr "ブラウザーからの接続を許可しますか？"
+
+msgid "Connection name"
+msgstr "接続名"
+
+msgid "Use letters, numbers, spaces, hyphens or underscores."
+msgstr "文字、数字、空白、ハイフン、アンダースコアが使えます。"
+
+msgid "Allow connection"
+msgstr "接続を許可"
+
+msgid "Browser connection allowed. Save the database to keep the connection."
+msgstr "ブラウザーからの接続を許可しました。接続設定を残すにはデータベースを保存してください。"
+
+msgid "Could not register the browser connection. Try again with a unique connection name."
+msgstr "ブラウザー接続を登録できませんでした。別の接続名でやり直してください。"
+
+#, qt-format
+msgid "Choose one entry to make available to KeePassXC-Browser for %1."
+msgstr "%1 に入力するログイン情報を1件選んでください。選んだ情報を KeePassXC-Browser に渡します。"
+
+msgid "Allow login for this site?"
+msgstr "このサイトへのログイン情報の入力を許可しますか？"
+
+msgid "Untitled entry"
+msgstr "タイトルなしのエントリー"
+
+#, qt-format
+msgid "Allow %1"
+msgstr "%1 の入力を許可"

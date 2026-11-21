@@ -25,6 +25,22 @@ check_original() {
     dpkg-query -W -f='${Package} ${Version} ${db:Status-Status}\n' keepassxc 2>/dev/null || true
     if dpkg-query -W keepassxc >/dev/null 2>&1; then dpkg --verify keepassxc || true; fi
 }
+check_runtime() {
+    local directory=/usr/libexec/keepassxc-gnome item libraries
+    local -a helpers=(keepassxc-gnome keepassxc-gnome-worker keepassxc-gnome-picker)
+    # A prior release can serve as the upgrade baseline without the new host.
+    if dpkg-query -L "$package" | grep -Fx "$directory/keepassxc-gnome-browser-host" >/dev/null; then
+        helpers+=(keepassxc-gnome-browser-host)
+    fi
+    for item in "${helpers[@]}"; do
+        [[ -x $directory/$item ]]
+        libraries=$(env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH ldd "$directory/$item")
+        if grep -q 'not found' <<< "$libraries"; then
+            printf '%s\n' "$libraries" >&2
+            return 1
+        fi
+    done
+}
 check_original > "$record/original.before"
 mkdir -p "$record/config/keepassxc-gnome" "$record/state/keepassxc-gnome/recovery"
 printf 'synthetic settings sentinel\n' > "$record/config/keepassxc-gnome/sentinel"
@@ -34,11 +50,7 @@ apt-get --yes --no-remove install "$first"
 [[ $(dpkg-query -W -f='${Version}' "$package") == "$(dpkg-deb -f "$first" Version)" ]]
 env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH keepassxc-gnome --version
 env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH LC_ALL=C.UTF-8 LANGUAGE=de keepassxc-gnome --language-check | grep -Fx Ready
-for item in keepassxc-gnome keepassxc-gnome-worker keepassxc-gnome-picker; do
-    [[ -x /usr/libexec/keepassxc-gnome/$item ]]
-    libraries=$(env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH ldd "/usr/libexec/keepassxc-gnome/$item")
-    ! grep -q 'not found' <<< "$libraries"
-done
+check_runtime
 [[ -f /usr/share/locale/ja/LC_MESSAGES/keepassxc-gnome.mo ]]
 desktop-file-validate /usr/share/applications/org.keepassxc.Gnome.Development.desktop
 if [[ -n ${KPXC_VM_DOMAIN_TEST:-} && -n ${KPXC_VM_REFERENCE_TOOL:-} ]]; then
@@ -48,10 +60,12 @@ fi
 apt-get --yes --no-remove install "$second"
 [[ $(dpkg-query -W -f='${Version}' "$package") == "$(dpkg-deb -f "$second" Version)" ]]
 dpkg --verify "$package"
+check_runtime
 sha256sum --check "$record/sentinels"
 apt-get --yes purge "$package"
 [[ ! -e /usr/bin/keepassxc-gnome && ! -L /usr/bin/keepassxc-gnome ]]
 [[ ! -e /usr/libexec/keepassxc-gnome/keepassxc-gnome-worker ]]
+[[ ! -e /usr/libexec/keepassxc-gnome/keepassxc-gnome-browser-host ]]
 sha256sum --check "$record/sentinels"
 check_original > "$record/original.after"
 cmp "$record/original.before" "$record/original.after"

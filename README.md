@@ -5,12 +5,12 @@ KeePassXCのコアとGTK4・libadwaitaを組み合わせた独立プロジェク
 
 ## インストール
 
-[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、v0.2.0のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
+[Releases](https://github.com/NBE03xxx/keepassxc-gnome/releases)から、v0.3.0のdebと`SHA256SUMS`をダウンロードしてください。対応環境はUbuntu 26.04（amd64）です。
 
 ```bash
-sha256sum keepassxc-gnome_0.2.0-1_amd64.deb
+sha256sum keepassxc-gnome_0.3.0-1_amd64.deb
 # 表示された値をSHA256SUMS内の同名ファイルの値と照合
-sudo apt install ./keepassxc-gnome_0.2.0-1_amd64.deb
+sudo apt install ./keepassxc-gnome_0.3.0-1_amd64.deb
 ```
 
 アプリ一覧から「KeePassXC GNOME」を起動します。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
@@ -19,6 +19,7 @@ sudo apt install ./keepassxc-gnome_0.2.0-1_amd64.deb
 
 - KDBX 3.1 / 4.0 / 4.1の読み書き、作成・保存・ロック
 - 既存DBのキーファイル単独・マスターパスワード併用での解除
+- Chrome安定版（deb）との連携、許可したHTTPSサイトへのログイン情報入力
 - グループとエントリーの管理、検索、プレビュー、アイコン選択
 - パスワード生成、ユーザー名・パスワードのコピー
 - 未保存表示、保存時のバックアップ、未保存の変更の復旧
@@ -30,13 +31,14 @@ sudo apt install ./keepassxc-gnome_0.2.0-1_amd64.deb
 
 日常的な短時間の個人利用を対象としています。長時間・反復操作ではメモリ使用量が増加する既知の問題があります。大切なデータベースはバックアップを取り、本家との同時編集を避けてください。
 
-YubiKeyでの解除、ブラウザー連携、Auto-Type、TOTPのコード生成・表示は未対応です。既存のTOTP設定は保持します。キーファイルの生成・新規DBへの設定・既存DBの鍵変更には本家KeePassXCを使用してください。保持できない形式・設定のデータは理由を示して読み込みを拒否します。既存のカスタムアイコン画像は保持しますが、画面では汎用アイコンを表示します。
+ブラウザー連携には、Chrome Web Store版のKeePassXC-Browserが必要です。接続とHTTPSフォームへの入力はアプリで許可します。フォームの送信はブラウザーで行います。[ブラウザー連携の手順](docs/user-guide.md#ブラウザー連携)を参照してください。
+
+YubiKeyでの解除、Auto-Type、TOTPのコード生成・表示は未対応です。既存のTOTP設定は保持します。キーファイルの生成・新規DBへの設定・既存DBの鍵変更には本家KeePassXCを使用してください。保持できない形式・設定のデータは理由を示して読み込みを拒否します。既存のカスタムアイコン画像は保持しますが、画面では汎用アイコンを表示します。
 
 ## ロードマップ
 
 今後、以下の機能を段階的に実装する予定です。
 
-- ブラウザー連携
 - Auto-Type
 - TOTPの設定・認証コードの生成と表示
 

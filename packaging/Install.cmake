@@ -3,6 +3,7 @@ install(PROGRAMS
     "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome"
     "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-worker"
     "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-picker"
+    "${CMAKE_BINARY_DIR}/bin/keepassxc-gnome-browser-host"
     DESTINATION libexec/keepassxc-gnome)
 install(FILES "${CMAKE_BINARY_DIR}/share/locale/ja/LC_MESSAGES/keepassxc-gnome.mo"
     DESTINATION share/locale/ja/LC_MESSAGES)

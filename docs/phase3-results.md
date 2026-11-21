@@ -436,3 +436,64 @@ v0.1.0の公開を完了した。[GitHub Release](https://github.com/NBE03xxx/ke
 キーファイル対応を含む0.2.0-1のdebと対応ソースを固定した。通常とクリーン再ビルドの24試験、梱包検査が成功した。Ubuntu 26.04.1 VMで更新・合成DBの基本操作・配置済みworkerの鍵45通り・日英の解除・削除を確認した。同じdebでT16を更新し、実行ファイルと翻訳を照合した。
 
 T16で利用者がキーファイル単独・パスワード併用ともに正常に解除できた。初回確認用の英語表示は作業環境のロケールが原因だった。T16のGNOMEの日本語設定で導入済みアプリを再起動して確認した。v0.2.0をGitHubで公開し、全4配布物の再ダウンロードとSHA256一致を確認した。[導入・公開記録](release-v0.2.0-publication.md)。
+
+### ブラウザー連携の実装調査（2026-11-19）
+
+固定上流2.8.0と公式KeePassXC-Browserの接続、GTK・workerへの接続点、本家と競合するNative Messaging登録、Chrome・Brave・Firefoxの違いを確認した。上流の暗号メッセージ処理は既存SDKで変更せずにコンパイル・リンクし、合成データで往復できた。初回はChrome（deb）と公式拡張による接続登録・承認・既存ログインの入力を提案する。実ブラウザーでの相互運用は未検証。実装手順・根拠・確認項目を[ブラウザー連携の実装調査](browser-integration-plan.md)へ記録した。
+
+### ブラウザー連携の第1段階（2026-11-19）
+
+Ubuntu 26.04.1 VMで、Chrome for Testing 158.0.8127.36に公式KeePassXC-Browser 1.10.4.1の未改変ZIPを読み込んだ。拡張の起動処理から、専用のNative MessagingホストとUnixソケットを経由して `change-public-keys` と `get-databasehash` が成功した。公式拡張自身がnonceを検証し、暗号化された合成ハッシュを復号した。同じポートでの `associate`、`test-associate`、`get-logins` はすべて拒否した。連続フレーム、鍵交換前の要求、不正なnonce、空・過大・途中で切れたフレーム、不正なUTF-8とJSONも確認した。
+
+`tests/browser_connection_probe.py` が一時登録と中継を、`tests/browser_connection_probe.cpp` が固定上流の `upstream/keepassxc/src/browser/BrowserMessageBuilder.cpp` を使う合成応答を担当する。既存の24試験はすべて成功した。うちD-Busを使う2件は、作業サンドボックスのソケット制限により再実行した。VMでは既存のランタイムを用い、試験後は一時ファイルとAppArmorプロファイルを撤去してVMを停止した。
+
+通常のChrome（deb）とストア配布拡張での登録、workerとGTK承認への接続は未着手。[再現手順](browser-integration-plan.md#第1段階の接続試験の再現手順)。
+
+### ストア配布版の接続とworkerでの接続登録（2026-11-20）
+
+Ubuntu 26.04.1 VMでGoogle公式のChrome安定版deb 158.0.8127.36-1を展開し、Chrome Web Storeから公式KeePassXC-Browser 1.10.4.1を導入した。一時プロファイルのNative Messaging登録をストアIDに限定した。拡張自身による鍵交換と合成ハッシュの復号を確認した。実行プロセスに限定したストア導入・観測用のポリシー、Chromeの展開ファイルと一時AppArmorプロファイルは試験後に撤去し、VMを停止した。
+
+`src/gnome/BrowserSession.cpp` に、接続単位の鍵交換、DBハッシュ、承認待ち、登録照合を実装した。`prototype/CoreSession.cpp` は既存の暗号化DBメタデータと保存経路を使う。新しい登録はGNOME用の名前空間に置き、暗号化チェックポイントが確定してから成功を返す。私有workerプロトコルを6へ更新した。
+
+通常のビルドとCTest 25件が成功した。新しい `tests/browser_pairing_tests.cpp` は合成KDBX 3.1・4.0・4.1で承認取消、別接続からの承認、切断・再鍵交換・ロック、重複名と異なる識別キーの拒否、暗号化チェックポイントと通常保存からの再照合、チェックポイント失敗時に成功応答を返さないことを確認した。上流固定treeと差分の空白検査も通過した。
+
+GTKでの承認と無効化の手順を設計した。製品のNative Messagingホスト・登録設定・GTK承認画面の接続と、ブラウザーからDBまで通した承認試験は今後の作業。今回のブラウザーでの試験には合成レスポンダーを、workerの試験には合成KDBXを使用した。[検証手順と設計](browser-integration-plan.md#通常のchromeとweb-store版での接続試験2026-11-20)。
+
+### Chromeとの接続登録とGTK承認（2026-11-20）
+
+開発版にChrome Stable向けのNative Messagingホストを追加した。`src/gnome/BrowserIntegration.cpp` が利用者の明示操作でマニフェストと専用Unixソケットを有効にする。`src/gnome/browser_native_host.cpp` が公式拡張との間を中継し、`src/main.cpp` が日英の設定・承認画面と既存workerをつなぐ。許可した登録は暗号化チェックポイントを経由して通常のDB保存で確定する。ロックは承認待ちを閉じ、ポートを切断する。
+
+Ubuntu 26.04.1の隔離VMで、開発用debに同梱したホストと実際のGTK画面を、Chrome Stable 158.0.8127.36とWeb Store版KeePassXC-Browser 1.10.4.1で通し試験した。英語・日本語ともに、初期無効、既存の利用者用マニフェストの保護、明示的な有効化、接続要求の取消、切断と模擬スリープ時の承認待ちの破棄、登録・保存、ロック中の要求拒否、再解除・再起動後の照合、無効化が成功した。不許可の拡張ID、過大フレーム、不正なUTF-8の拒否も確認した。現在は `get-logins` が拒否されることを公式拡張で確認しており、ログイン情報の入力は後続段階。
+
+試験に使ったChromeと開発用debはVM内の一時領域に展開し、試験後に一時ポリシー・AppArmorルール・合成DBとともに撤去してVMを停止した。通常のビルドとCTest 25件、上流参照treeの検証、補助プログラムの配置・set-IDビットと自動登録ファイルがないことを含むパッケージ検査を通過した。[使い方と再現手順](browser-integration-plan.md#開発版での接続登録)。
+
+### 承認したHTTPSサイトへのログイン入力（2026-11-20）
+
+`src/gnome/BrowserSession.cpp` に公式拡張の `get-logins` を追加した。同じ接続で照合した登録IDと識別キーが一致した場合、`prototype/BrowserAccess.cpp` がページ・フォーム送信先・エントリーURLのHTTPSオリジンと保存済みのアクセス制限を確認する。`src/main.cpp` は日英の承認画面に宛先と候補のタイトル・グループを表示する。選択した1件をworkerが再照合し、暗号化して拡張に返す。私有workerプロトコルは7。応答には `skipAutoSubmit` を指定する。標準設定での別オリジンiframeの判定は公式拡張が行う。
+
+`tests/browser_pairing_tests.cpp` で未照合・別接続・誤キー、別スキーム・似たホスト・別ポート・別送信先、期限切れ・ごみ箱・非表示・拒否・接続キー制限・未対応設定、取消直後の再要求、DB編集とロックによる承認失効を検証した。[使い方と検証手順](browser-integration-plan.md#開発版でのログイン入力)。
+
+Ubuntu 26.04.1隔離VMで、Chrome Stable 158.0.8127.36とWeb Store版KeePassXC-Browser 1.10.4.1を使った。日本語・英語ともに、GTKで許可した合成エントリー1件のユーザー名とパスワードがHTTPSフォームに入った。拡張の自動送信を有効にしても送信されなかった。別オリジンのフォーム送信先・iframeの拒否、取消、承認中のロック、入力後の拡張キャッシュ破棄も確認した。CTest全25件、開発用debのパッケージ検査、上流固定treeの検証が成功した。
+
+### T16でのブラウザー連携確認（2026-11-21）
+
+T16のUbuntu 26.04.1 / GNOME Shell 50.1 / Waylandのローカルセッションで、日本語のGTK画面を操作した。VMと同じ `keepassxc-gnome-development_0.2.0-2~browser-fill-test_amd64.deb`（SHA-256 `8b79f03f6cc8c539ae7532a358dc999cce17ab9f62257d4989ea25ac67025a4d`）を一時領域に展開した。実機のChrome Stable 158.0.8127.36-1を専用プロファイルで起動し、[Chrome Web Store](https://chromewebstore.google.com/detail/keepassxc-browser/oboonakemofpalcgghocfoadofidjkkk)からKeePassXC-Browser 1.10.4.1を導入した。
+
+- 初期無効、既存マニフェストを検知したときの保護、明示的な有効化、合成DBを指定した接続承認、通常保存、再解除・再起動後の登録照合、無効化と再有効化を確認した。
+- 別オリジンの送信先・iframeからの入力要求を拒否した。承認前と取消後の合成フォームは空で、許可した1件のユーザー名とパスワードだけが実際のHTTPSフォームに入った。拡張で自動送信を有効にしても試験サーバーへのPOSTは届かなかった。
+- GTKのDBロックで拡張が切断され、拡張の資格情報キャッシュが消えた。ロック後のNative Messaging要求は承認画面を出さずに拒否した。最後に連携を無効化し、検証用マニフェストとソケットの消滅を確認した。
+
+`tests/browser_pairing_ui.py` のVM用試験を、実機のD-BusとAT-SPI操作に合わせて再利用した。AT-SPIから一時的に承認ダイアログの子要素を取れない試行があり、再実行でChromeの非表示・表示の両方が合格した。T16ではアプリのDBロックを検証した。GNOMEの画面ロックや実スリープによる承認の取り消しはT16で未検証。実装の該当箇所は `src/main.cpp` の承認画面と、`prototype/BrowserAccess.cpp` のHTTPS判定・自動送信制御。
+
+検証用プロセスを終了し、一時Chromeプロファイル・展開したdeb・合成DBを撤去した。T16の導入済みアプリは `0.2.0-1` で、通常のChromeプロファイル用とシステム用の連携マニフェストはいずれも試験の前後とも存在しなかった。
+
+### v0.3.0公開候補の準備とロック・実スリープ確認（2026-11-21）
+
+Chrome安定版との連携と承認付きHTTPS入力をv0.3.0の変更として固定した。版表示を `CMakeLists.txt` のプロジェクト版から渡し、公開用パッケージと日本語カタログを0.3.0に揃えた。READMEと[利用ガイド](user-guide.md#ブラウザー連携)に連携の有効化、接続登録、入力の許可と停止手順を追記した。[リリース本文](release-notes-v0.3.0.md)を用意した。
+
+- `build/dist/v0.3.0/` に公開用deb `keepassxc-gnome_0.3.0-1_amd64.deb`、完全対応ソース、ビルドmanifest、SHA256SUMSを固定した。debのSHA-256は `013cfaff21a44e000bfb35da1324e191cd98ecef11e23adf1c2d42a0acb2f4c7`。梱包検査、同じ入力からの4成果物のバイト一致、通常ビルドと完全対応ソースからのクリーンビルドでそれぞれCTest 25件が成功した。公開用debで日本語GUIの合成DB作成・編集・検索・ロックも確認した。
+- Ubuntu 26.04.1 VMで公開用debの新規導入、`0.2.0-1` からの更新、削除を確認した。導入後に4実行ファイルとmanifest、日本語の版を照合し、削除後は全パッケージ状態と合成設定・状態のファイルを開始時と照合した。VM内の一時ファイルを撤去し、通常停止した。
+- T16で利用者がGNOMEの画面ロック・解除とサスペンド・復帰を操作した。GNOMEの `ActiveChanged` とlogindの `PrepareForSleep` の開始・終了を観測し、実スリープはカーネル記録でs2idleに入って復帰したことも確認した。どちらも待機中の入力承認が閉じ、フォームは空のままで、復帰後にDBハッシュ要求を再送してもロック中として拒否された。画面ロック試験は前項の検証用deb、実スリープ試験は公開用debを展開して実施した。両版の `src/gnome/SessionGuard.cpp` とブラウザー連携・workerの関連ソースを照合し、`src/main.cpp` の差は版表示だけだった。
+- 公開用debをT16で再起動し、実機のGTK画面と一時プロファイルのChromeで、接続・再照合・入力・拒否・無効化まで再確認した。AT-SPIで前面表示中の承認を操作できない試行があり、最後の通し試験はChromeを非表示で起動して完了した。一時ファイルは撤去し、T16の導入済み版は `0.2.0-1` と確認した。
+
+GitHub公開前に利用者自身が公開候補の起動と操作を確認する。公開は改めて明示指示を受けて進める。

@@ -1,4 +1,5 @@
 #include "gnome/RemoteSession.h"
+#include "gnome/BrowserAccess.h"
 #include "gnome/SessionProtocol.h"
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -184,6 +185,7 @@ struct RemoteSession::Impl
         const auto epoch = taskEpoch.value_or(cancellation->load());
         const auto op = QByteArray(operation);
         activeWall = (op == "save" || op == "saveAs" || op == "saveCopy" || op == "enableRecovery"
+            || op == "browserDecision"
             || (protectedEdits && mutation(QString::fromLatin1(operation)))) ? limits.saveWallMilliseconds() : limits.wallMilliseconds;
         QElapsedTimer timer; timer.start();
         try {
@@ -219,6 +221,50 @@ struct RemoteSession::Impl
         if (!value.isBool()) { trip(ReadFailure::WorkerFailure); return false; }
         return value.toBool();
     }
+
+    BrowserReply browserReply(const char* operation, QJsonArray arguments)
+    {
+        const auto value = call(operation, arguments);
+        if (fatal != ReadFailure::None || !unlocked) return {};
+        const auto object = value.toObject();
+        const auto response = object.value("response");
+        const auto approval = object.value("approval");
+        const auto origin = object.value("origin");
+        const auto choices = object.value("choices");
+        const auto registered = object.value("registered");
+        if (!value.isObject()
+            || (!response.isUndefined() && !response.isObject())
+            || (!approval.isUndefined() && (!approval.isString() || approval.toString().size() != 32))
+            || (origin.isUndefined() != choices.isUndefined())
+            || (!origin.isUndefined() && (!approval.isString() || !origin.isString()
+                || origin.toString().isEmpty() || origin.toString().size() > 512 || !choices.isArray()))
+            || (!registered.isUndefined() && (!registered.isBool() || !response.isObject()))
+            || (response.isObject() && approval.isString())) {
+            trip(ReadFailure::WorkerFailure);
+            return {};
+        }
+        BrowserReply result{response.toObject(), approval.toString(), origin.toString(), {}, registered.toBool()};
+        if (!choices.isArray()) return result;
+        const auto rows = choices.toArray();
+        if (rows.isEmpty() || rows.size() > BrowserLoginLimit) {
+            trip(ReadFailure::WorkerFailure);
+            return {};
+        }
+        for (const auto& row : rows) {
+            const auto item = row.toObject();
+            const auto id = item.value("id").toString();
+            const auto title = item.value("title");
+            const auto group = item.value("group");
+            if (item.size() != 3 || id.size() != 36 || !title.isString() || !group.isString()
+                || title.toString().size() > 121 || group.toString().size() > 121) {
+                trip(ReadFailure::WorkerFailure);
+                return {};
+            }
+            result.choices.push_back({id, title.toString(), group.toString()});
+        }
+        return result;
+    }
+
     bool persist(const char* operation, QJsonArray args, const std::string& target = {})
     {
         saveResult = {};
@@ -284,6 +330,23 @@ bool RemoteSession::fullyStopped() const {
     return impl->child < 0 && !impl->reaping->load() && (!impl->recoveryWorker || impl->recoveryWorker->fullyStopped());
 }
 void RemoteSession::lock() { impl->stop(); impl->fatal = impl->failure = ReadFailure::None; }
+
+BrowserReply RemoteSession::browserRequest(int connection, const QJsonObject& message)
+{
+    if (connection <= 0) return {};
+    return impl->browserReply("browserRequest", {connection, message});
+}
+
+BrowserReply RemoteSession::browserDecision(int connection, const QString& approval, const QString& selection)
+{
+    if (connection <= 0 || approval.size() != 32 || selection.size() > 64) return {};
+    return impl->browserReply("browserDecision", {connection, approval, selection});
+}
+
+void RemoteSession::closeBrowserConnection(int connection)
+{
+    if (connection > 0) impl->boolean("browserClose", {connection});
+}
 
 std::vector<GroupSummary> RemoteSession::groups() const
 {

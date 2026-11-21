@@ -15,7 +15,7 @@
 
 namespace SessionProtocol {
 inline constexpr quint32 MaximumFrame = 16U << 20;
-inline constexpr int Version = 5; // explicit password factor and optional key file
+inline constexpr int Version = 7; // browser login approval summaries
 struct Error : std::runtime_error { Error() : std::runtime_error("Invalid worker protocol") {} };
 struct SizeError : Error {};
 
