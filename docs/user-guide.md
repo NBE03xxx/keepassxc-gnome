@@ -16,11 +16,13 @@ KDBXの右クリックの「別のアプリで開く」から、本家KeePassXC�
 
 ## 対応する入力
 
-KDBX 3.1 / 4.0 / 4.1の既知データを上流KeePassXCのreader / writerで扱う。既存DBはパスワード、キーファイル単独、または両方で解除できる。型・設定・資源上限・保持検査に通らない入力は理由付きで拒否する。YubiKey、Argon2 1.0、任意の未知構造は対応範囲外。
+KDBX 3.1 / 4.0 / 4.1の既知データを上流KeePassXCのreader / writerで扱う。既存DBはパスワード、キーファイル単独、または両方で解除できる。指紋・顔認証などの生体認証やYubiKeyによるDB解除は未対応。型・設定・資源上限・保持検査に通らない入力は理由付きで拒否する。Argon2 1.0と任意の未知構造は対応範囲外。
 
 本家KeePassXCで作成したキーファイルをそのまま選択できる。キーファイル単独のDBでは解除画面の「マスターパスワードを使用する」をオフにする。両方を設定したDBではオンのまま、同じパスワードを入力してキーファイルを選ぶ。選択は毎回行う。キーファイルは16 MiBまでのローカルの通常ファイルに対応する。新規DBのキーファイル設定や鍵の変更は本家KeePassXCで行う。
 
-GTKに編集画面がない履歴・添付・連携用属性等も、対応する既知データは保持する。SSH Agent・Secret Service・Passkey等の機能は未対応。詳細は [互換性方針](compatibility-policy.md) と [保持試験](known-data-compatibility.md)。
+GTKに編集画面がない履歴・添付・連携用属性等も、対応する既知データは保持する。SSH Agent・Passkey等の機能は未対応。詳細は [互換性方針](compatibility-policy.md) と [保持試験](known-data-compatibility.md)。
+
+他のアプリにSecret Service（秘密サービス）経由で資格情報を提供する統合機能は未実装。
 
 ファイル128 MiB、展開256 MiB、XML深さ128等の製品側上限がある。大きいDB、重いKDF、応答の大きい検索・属性は、形式として正しくても処理できない場合がある。保存・初期復旧保護にも資源が必要で、解除だけで判定しない。上限一覧は [読込方針](read-resource-policy.md)、[XML・モデル](xml-model-preservation.md)、[プロセス制限](reader-process-limits.md)。
 

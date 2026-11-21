@@ -15,3 +15,7 @@ sudo apt install ./keepassxc-gnome_0.5.0-3_amd64.deb
 ```
 
 長時間の反復操作でメモリ使用量が増える既知の問題があります。ブラウザー連携とAuto-Typeが入力する項目は利用ガイドで確認できます。[利用ガイド](https://github.com/NBE03xxx/keepassxc-gnome/blob/v0.5.0/docs/user-guide.md)
+
+## 文書の更新
+
+READMEにライト・ダークの表示イメージを追加しました。生体認証によるデータベースの解除とSecret Service（秘密サービス）統合の制限は、更新後のREADMEと利用ガイドで確認できます。[README](https://github.com/NBE03xxx/keepassxc-gnome/blob/main/README.md) · [利用ガイド](https://github.com/NBE03xxx/keepassxc-gnome/blob/main/docs/user-guide.md#対応する入力)

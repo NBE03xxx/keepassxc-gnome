@@ -587,3 +587,17 @@ T16を同じ `0.5.0-2` に更新した。debは `build/dist/v0.5.0-totp-layout/`
 `build/dist/v0.5.0/` のdeb、完全対応ソース、ビルドmanifest、SHA256SUMSを添付した。公開deb `keepassxc-gnome_0.5.0-3_amd64.deb` のSHA-256は `0293aca15b8c995a2e6745cc72f70fba50d08ead08438dcd592e04775ad3efe3`。文書の同期でDebian revisionを上げ、T16の `0.5.0-2` と実行ファイル5本、翻訳、GNOME Shell拡張を照合した。
 
 梱包検査、同一入力からの4成果物のバイト一致、完全対応ソースからの再ビルドとCTest全27件、公開debの日本語GUI操作が成功した。Ubuntu 26.04.1 VMで新規導入、`0.5.0-2` からの更新、削除、導入済みワーカーのTOTP試験を確認した。VMは試験終了後に通常停止した。公開後は4点を認証なしで再ダウンロードしてSHA-256の一致、最新リリースへの指定、非公開脆弱性報告の有効状態を確認した。
+
+### 生体認証とSecret Serviceの制限を明記（2026-11-21）
+
+READMEと利用ガイドに、指紋・顔認証によるDB解除と、他のアプリへ資格情報を提供するSecret Service（秘密サービス）統合が未実装であることを記載した。解除の対応範囲は `src/main.cpp` の `credentials` と `prototype/CoreSession.h` の `UnlockCredentials` に基づく。`CMakeLists.txt` で指定する `KPXC_MINIMAL` により、`upstream/keepassxc/CMakeLists.txt` でSecret Service統合が無効になる。
+
+### READMEのライト・ダーク表示イメージ（2026-11-21）
+
+READMEの「制限」に利用者指定の箇条書きを採用した。合成データを表示した `docs/images/navigation-preview-light.png` と `docs/images/navigation-preview-dark.png` を参考に、組み込みの画像生成ツールで左右にライト・ダークを並べたイメージを作成した。`docs/images/readme-light-dark.png` に保存し、README冒頭から相対パスで表示する。
+
+生成時の指示
+
+> UIイメージ。KeePassXC GNOMEのREADME冒頭用の横長バナーを1枚生成。参考画像1はライト、画像2はダークの実画面。左にライト、右にダークを置き、同じGNOME/libadwaita風ウィンドウを同寸・正面から、間隔を空けて並べる。丸みのあるヘッダー、左のフォルダー欄、右のエントリー一覧、下のプレビュー、オレンジの選択行、伏せ字のパスワードを簡潔に再現。文字は各ウィンドウの「KeePassXC GNOME」と小さな「Demo」「Mail」「Cloud」だけ。細かい情報は短い線や記号で表す。明るいグレーとチャコールの配色が一目で比較できるようにし、背景は控えめな暖色グレー、両ウィンドウの四辺と余白はすべて画面内に収める。ロゴ、追加の広告文、透かし、実在の資格情報は入れない。イラストとして明快で、READMEの幅に縮小しても見やすい構図。
+
+利用者の公開指示に基づき、文書更新をGitHubのmainに反映し、既存のv0.5.0リリース本文に案内を追加する。公開済みの配布物とソースとの対応を保つため、v0.5.0タグは配布時のコミットを参照する。
