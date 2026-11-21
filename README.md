@@ -13,7 +13,7 @@ sha256sum keepassxc-gnome_0.3.0-1_amd64.deb
 sudo apt install ./keepassxc-gnome_0.3.0-1_amd64.deb
 ```
 
-アプリ一覧から「KeePassXC GNOME」を起動します。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
+アプリ一覧から「KeePassXC GNOME」を起動します。右上のデータベースメニューの「このアプリについて」でバージョンを確認できます。本家KeePassXCと共存でき、明示済みのファイル関連付けは変更しません。
 
 ## 主な機能
 

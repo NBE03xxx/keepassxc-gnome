@@ -1,6 +1,14 @@
-# 手順6：配布物と継続保守
+# 配布物と継続保守
 
-2026-11-13。対象は Ubuntu 26.04 / GNOME 50 / Wayland。現在は合成データによる検証用であり、公開・実データ利用の承認を意味しない。
+## 公開版v0.3.0の配布
+
+Ubuntu 26.04（amd64）用の公開パッケージ名は `keepassxc-gnome`。本体とworker、picker、Chrome連携用のNative Messagingホストを `/usr/libexec/keepassxc-gnome/` に配置する。Chromeへの登録は利用者がアプリで連携を有効にしたときに作られる。[利用ガイド](user-guide.md#ブラウザー連携)。
+
+同じビルドのdeb、完全対応ソース、ビルドmanifest、SHA256SUMSをGitHub Releaseで配布する。v0.3.0の公開用debは未署名。公開前にUbuntu 26.04.1 VMでの新規導入・更新・削除と、T16での導入・操作を確認した。[v0.3.0の検証記録](phase3-results.md#v030のバージョン表示とt16導入2026-11-21)。
+
+## 手順6の開発記録
+
+2026-11-13時点の開発版記録。対象はUbuntu 26.04 / GNOME 50 / Waylandで、合成データを使用した。
 
 **2026-11-14の現在地。** この文書の試験件数・dev1の結果は手順6時点の記録。後のdev4の画面確認に続き、[dev5の梱包とVM検証](session-guard-candidate-validation.md)、[実機更新・5分経過後のOrca確認](dev5-physical-orca.md)を今回の操作範囲で完了した。初回のqzv読み上げの入力条件は不明で、未解決の観測として残す。GUIの生LSanと長時間の増加基準も[公開前レビュー](pre-release-review.md)で区別している。
 
